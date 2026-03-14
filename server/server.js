@@ -35,6 +35,12 @@ app.get('*', (req, res) => {
 
 // Global error handler
 app.use((err, req, res, next) => {
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ error: 'File too large' });
+  }
+  if (err.message && err.message.startsWith('Only .jpg')) {
+    return res.status(400).json({ error: err.message });
+  }
   console.error(err.stack);
   res.status(500).json({ error: 'Internal server error' });
 });
