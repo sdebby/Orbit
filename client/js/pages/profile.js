@@ -47,8 +47,8 @@ export async function renderProfile(app) {
             </div>
             <div class="form-group">
               <label>New Password</label>
-              <input type="password" class="form-control" id="new-pass" autocomplete="new-password" minlength="6" />
-              <div class="form-hint">At least 6 characters</div>
+              <input type="password" class="form-control" id="new-pass" autocomplete="new-password" minlength="8" />
+              <div class="form-hint">Min 8 characters, including uppercase, number and special character</div>
             </div>
             <div class="form-group">
               <label>Confirm New Password</label>
