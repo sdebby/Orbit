@@ -8,12 +8,21 @@ const { sendPasswordResetEmail } = require('../utils/email');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function validatePassword(password) {
+  if (!password || password.length < 8) return 'Password must be at least 8 characters';
+  if (!/[A-Z]/.test(password))          return 'Password must contain at least one uppercase letter';
+  if (!/[0-9]/.test(password))          return 'Password must contain at least one number';
+  if (!/[^A-Za-z0-9]/.test(password))  return 'Password must contain at least one special character';
+  return null;
+}
+
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
   if (!EMAIL_REGEX.test(email)) return res.status(400).json({ error: 'Invalid email format' });
-  if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  const pwErr = validatePassword(password);
+  if (pwErr) return res.status(400).json({ error: pwErr });
 
   const emailNorm = email.toLowerCase().trim();
   const emailHash = sha512(emailNorm);
@@ -76,7 +85,8 @@ router.post('/forgot-password', (req, res) => {
 router.post('/reset-password/:token', async (req, res) => {
   const { token } = req.params;
   const { password } = req.body;
-  if (!password || password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  const pwErr = validatePassword(password);
+  if (pwErr) return res.status(400).json({ error: pwErr });
 
   const user = db.prepare('SELECT * FROM users WHERE reset_token = ?').get(token);
   if (!user || user.reset_token_expires < Date.now()) {

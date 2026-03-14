@@ -3,6 +3,14 @@ const router = express.Router();
 const db = require('../models/db');
 const { requireAuth } = require('../middleware/auth');
 const { hashPassword, verifyPassword } = require('../utils/hash');
+
+function validatePassword(password) {
+  if (!password || password.length < 8) return 'Password must be at least 8 characters';
+  if (!/[A-Z]/.test(password))          return 'Password must contain at least one uppercase letter';
+  if (!/[0-9]/.test(password))          return 'Password must contain at least one number';
+  if (!/[^A-Za-z0-9]/.test(password))  return 'Password must contain at least one special character';
+  return null;
+}
 const multer = require('multer');
 const path = require('path');
 
@@ -35,7 +43,8 @@ router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) 
     if (!current_password) return res.status(400).json({ error: 'Current password is required to set a new password' });
     const valid = await verifyPassword(current_password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
-    if (new_password.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    const pwErr = validatePassword(new_password);
+    if (pwErr) return res.status(400).json({ error: pwErr });
     passwordHash = await hashPassword(new_password);
   }
 
