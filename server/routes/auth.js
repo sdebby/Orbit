@@ -2,14 +2,14 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const db = require('../models/db');
-const { sha512 } = require('../utils/hash');
+const { sha512, hashPassword, verifyPassword } = require('../utils/hash');
 const { signToken } = require('../middleware/auth');
 const { sendPasswordResetEmail } = require('../utils/email');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // POST /api/auth/register
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
   if (!EMAIL_REGEX.test(email)) return res.status(400).json({ error: 'Invalid email format' });
@@ -17,7 +17,7 @@ router.post('/register', (req, res) => {
 
   const emailNorm = email.toLowerCase().trim();
   const emailHash = sha512(emailNorm);
-  const passwordHash = sha512(password);
+  const passwordHash = await hashPassword(password);
 
   try {
     const stmt = db.prepare(
@@ -33,18 +33,18 @@ router.post('/register', (req, res) => {
 });
 
 // POST /api/auth/login
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
 
   const emailNorm = email.toLowerCase().trim();
   const emailHash = sha512(emailNorm);
-  const passwordHash = sha512(password);
 
   const user = db.prepare('SELECT * FROM users WHERE email_hash = ?').get(emailHash);
-  if (!user || user.password_hash !== passwordHash) {
-    return res.status(401).json({ error: 'Invalid email or password' });
-  }
+  if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+
+  const valid = await verifyPassword(password, user.password_hash);
+  if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
   const token = signToken(user.id);
   res.json({ token, userId: user.id, email: user.email, profilePicture: user.profile_picture });
@@ -73,7 +73,7 @@ router.post('/forgot-password', (req, res) => {
 });
 
 // POST /api/auth/reset-password/:token
-router.post('/reset-password/:token', (req, res) => {
+router.post('/reset-password/:token', async (req, res) => {
   const { token } = req.params;
   const { password } = req.body;
   if (!password || password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
@@ -83,8 +83,9 @@ router.post('/reset-password/:token', (req, res) => {
     return res.status(400).json({ error: 'Reset token is invalid or expired' });
   }
 
+  const passwordHash = await hashPassword(password);
   db.prepare('UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?')
-    .run(sha512(password), user.id);
+    .run(passwordHash, user.id);
 
   res.json({ message: 'Password updated successfully' });
 });

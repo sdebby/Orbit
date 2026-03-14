@@ -5,11 +5,22 @@ const { requireAuth } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 
+const ALLOWED_EXT = /\.(jpg|jpeg|png)$/i;
+const ALLOWED_MIME = ['image/jpeg', 'image/png'];
+
+function imageFilter(req, file, cb) {
+  if (ALLOWED_MIME.includes(file.mimetype) && ALLOWED_EXT.test(file.originalname)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only .jpg, .jpeg and .png files are allowed'));
+  }
+}
+
 const storage = multer.diskStorage({
   destination: path.join(__dirname, '..', 'uploads'),
   filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
 });
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: imageFilter });
 
 // GET /api/projects  — with optional search
 router.get('/', requireAuth, (req, res) => {
