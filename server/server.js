@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,8 +14,26 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, '..', 'client')));
 
+// Rate limiters for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+});
+
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many password reset requests, please try again later' },
+});
+
 // API Routes
-app.use('/api/auth', require('./routes/auth'));
+app.use('/api/auth/forgot-password', forgotPasswordLimiter);
+app.use('/api/auth', authLimiter, require('./routes/auth'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/projects/:projectId/buckets', require('./routes/buckets'));
 app.use('/api/buckets/:bucketId/tasks', require('./routes/tasks'));
