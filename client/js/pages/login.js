@@ -45,7 +45,7 @@ export function renderLogin(app) {
     try {
       const data = await api.login(email, password);
       localStorage.setItem('orbit_token', data.token);
-      localStorage.setItem('orbit_user', JSON.stringify({ userId: data.userId, email: data.email, profilePicture: data.profilePicture }));
+      localStorage.setItem('orbit_user', JSON.stringify({ userId: data.userId, email: data.email, username: data.username, profilePicture: data.profilePicture }));
       navigate('/projects');
     } catch (err) {
       errEl.textContent = err.message;

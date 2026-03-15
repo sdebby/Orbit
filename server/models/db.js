@@ -81,6 +81,10 @@ _db.exec(`
   );
 `);
 
+// Migrations — ADD COLUMN is idempotent via try/catch (SQLite has no IF NOT EXISTS for columns)
+try { _db.exec('ALTER TABLE buckets ADD COLUMN color TEXT'); } catch {}
+try { _db.exec('ALTER TABLE users ADD COLUMN username TEXT'); } catch {}
+
 // node-sqlite3-wasm requires params as an array, unlike better-sqlite3 which uses spread.
 // This wrapper normalises the API so routes work with spread args.
 class Statement {

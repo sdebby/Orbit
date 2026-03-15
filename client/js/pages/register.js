@@ -54,7 +54,7 @@ export function renderRegister(app) {
     try {
       const data = await api.register(email, password);
       localStorage.setItem('orbit_token', data.token);
-      localStorage.setItem('orbit_user', JSON.stringify({ userId: data.userId, email: data.email }));
+      localStorage.setItem('orbit_user', JSON.stringify({ userId: data.userId, email: data.email, username: data.username }));
       navigate('/projects');
     } catch (err) {
       errEl.textContent = err.message;
