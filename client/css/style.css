@@ -458,6 +458,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   display: flex;
   flex-direction: column;
   max-height: calc(100vh - var(--header-h) - 100px);
+  overflow-y: auto;
 }
 .bucket-header {
   padding: 10px 12px;
@@ -544,6 +545,43 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 
 .due-date { font-size: 11px; color: var(--gray-500); }
 .due-date.overdue { color: var(--red); font-weight: 600; }
+
+/* ========= Bucket Storyboard ========= */
+.bucket-storyboard {
+  padding: 8px 8px 4px;
+  background: var(--gray-200);
+  border-bottom: 1px solid var(--gray-300);
+}
+.storyboard-textarea {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--gray-700);
+  resize: none;
+  outline: none;
+  font-family: inherit;
+  line-height: 1.5;
+  transition: border-color .15s, background .15s;
+}
+.storyboard-textarea::placeholder { color: var(--gray-400); font-style: italic; }
+.storyboard-textarea:hover { border-color: var(--gray-300); background: var(--white); }
+.storyboard-textarea:focus { border-color: var(--blue); background: var(--white); }
+
+/* ========= Bucket Sections (Tasks / Risks) ========= */
+.bucket-section { display: flex; flex-direction: column; }
+.bucket-section-label {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .7px;
+  padding: 6px 12px 2px;
+  color: var(--gray-500);
+}
+.tasks-section { background: rgba(0,82,204,.04); }
+.tasks-section .bucket-section-label { color: var(--blue); }
+.risks-section { background: rgba(222,53,11,.04); }
+.risks-section .bucket-section-label { color: var(--red); }
 
 /* Add card / bucket buttons */
 .bucket-add-btn {
