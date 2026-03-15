@@ -34,7 +34,7 @@ router.post('/register', async (req, res) => {
     );
     const result = stmt.run(emailNorm, emailHash, passwordHash);
     const token = signToken(result.lastInsertRowid);
-    res.status(201).json({ token, userId: result.lastInsertRowid, email: emailNorm });
+    res.status(201).json({ token, userId: result.lastInsertRowid, email: emailNorm, username: null });
   } catch (err) {
     if (err.message.includes('UNIQUE')) return res.status(409).json({ error: 'Email already registered' });
     throw err;
@@ -56,7 +56,7 @@ router.post('/login', async (req, res) => {
   if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
   const token = signToken(user.id);
-  res.json({ token, userId: user.id, email: user.email, profilePicture: user.profile_picture });
+  res.json({ token, userId: user.id, email: user.email, username: user.username, profilePicture: user.profile_picture });
 });
 
 // POST /api/auth/forgot-password
@@ -110,9 +110,9 @@ router.get('/me', (req, res) => {
   const JWT_SECRET = process.env.JWT_SECRET || 'orbit-dev-secret-change-in-production';
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    const user = db.prepare('SELECT id, email, profile_picture, created_at FROM users WHERE id = ?').get(payload.userId);
+    const user = db.prepare('SELECT id, email, username, profile_picture, created_at FROM users WHERE id = ?').get(payload.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json({ userId: user.id, email: user.email, profilePicture: user.profile_picture, createdAt: user.created_at });
+    res.json({ userId: user.id, email: user.email, username: user.username, profilePicture: user.profile_picture, createdAt: user.created_at });
   } catch {
     return res.status(401).json({ error: 'Invalid token' });
   }

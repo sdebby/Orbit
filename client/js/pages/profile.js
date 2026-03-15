@@ -5,58 +5,109 @@ import { navbarHtml, setupNavbar } from './projects.js';
 
 export async function renderProfile(app) {
   const user = JSON.parse(localStorage.getItem('orbit_user') || '{}');
+  const displayName = user.username || user.email || '';
 
   app.innerHTML = `
     <div class="app-layout">
       ${navbarHtml()}
       <div class="page-content" style="overflow-y:auto">
         <div class="profile-page">
-          <button class="back-link" id="profile-back-btn" style="margin-bottom:16px">&#8592; Back to Projects</button>
-          <h2>Profile Settings</h2>
 
-          <div class="avatar-section">
-            <div class="avatar-lg" id="profile-avatar">
-              ${user.profilePicture
-                ? `<img src="${escHtml(user.profilePicture)}" alt="Avatar" />`
-                : getInitials(user.email)
-              }
-            </div>
-            <div>
-              <div style="font-weight:600">${escHtml(user.email || '')}</div>
-              <label class="btn btn-ghost btn-sm" style="margin-top:8px;cursor:pointer">
-                Change Photo
+          <button class="back-link" id="profile-back-btn">&#8592; Back to Projects</button>
+
+          <!-- Profile card -->
+          <div class="profile-hero">
+            <div class="profile-avatar-wrap">
+              <div class="avatar-lg" id="profile-avatar">
+                ${user.profilePicture
+                  ? `<img src="${escHtml(user.profilePicture)}" alt="Avatar" />`
+                  : getInitials(user.email)
+                }
+              </div>
+              <label class="avatar-change-btn" title="Change photo">
+                &#9998;
                 <input type="file" id="avatar-file" accept="image/*" style="display:none" />
               </label>
             </div>
+            <div class="profile-hero-info">
+              <div class="profile-hero-name">${escHtml(displayName)}</div>
+              ${user.username ? `<div class="profile-hero-email">${escHtml(user.email || '')}</div>` : ''}
+              <div class="profile-hero-label">Account Settings</div>
+            </div>
           </div>
 
-          <hr class="divider" />
-          <h3 style="margin-bottom:16px;font-size:16px">Appearance</h3>
-          <label class="theme-toggle">
-            <input type="checkbox" id="dark-mode-toggle" ${localStorage.getItem('orbit_theme') === 'dark' ? 'checked' : ''} />
-            <span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span>
-            Dark Mode
-          </label>
+          <!-- Account card -->
+          <div class="settings-card">
+            <div class="settings-card-header">Account</div>
+            <div class="settings-card-body">
+              <form id="account-form">
+                <div class="form-group" style="margin-bottom:0">
+                  <label>Display Name</label>
+                  <div style="display:flex;gap:8px">
+                    <input class="form-control" id="username-input" value="${escHtml(user.username || '')}" placeholder="Enter a display name" />
+                    <button type="submit" class="btn btn-primary" style="flex-shrink:0">Save</button>
+                  </div>
+                  <div class="form-hint">This name is shown on your profile. Leave blank to use your email.</div>
+                </div>
+              </form>
+            </div>
+          </div>
 
-          <hr class="divider" style="margin-top:20px" />
-          <h3 style="margin-bottom:16px;font-size:16px">Change Password</h3>
-          <form id="password-form">
-            <div class="form-group">
-              <label>Current Password</label>
-              <input type="password" class="form-control" id="cur-pass" autocomplete="current-password" />
+          <!-- Appearance card -->
+          <div class="settings-card">
+            <div class="settings-card-header">Appearance</div>
+            <div class="settings-card-body">
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-title">Dark Mode</div>
+                  <div class="settings-row-desc">Switch between light and dark theme</div>
+                </div>
+                <label class="theme-toggle">
+                  <input type="checkbox" id="dark-mode-toggle" ${localStorage.getItem('orbit_theme') === 'dark' ? 'checked' : ''} />
+                  <span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span>
+                </label>
+              </div>
             </div>
-            <div class="form-group">
-              <label>New Password</label>
-              <input type="password" class="form-control" id="new-pass" autocomplete="new-password" minlength="8" />
-              <div class="form-hint">Min 8 characters, including uppercase, number and special character</div>
+          </div>
+
+          <!-- Change Password card -->
+          <div class="settings-card">
+            <div class="settings-card-header">Change Password</div>
+            <div class="settings-card-body">
+              <form id="password-form">
+                <div class="form-group">
+                  <label>Current Password</label>
+                  <input type="password" class="form-control" id="cur-pass" autocomplete="current-password" />
+                </div>
+                <div class="form-group">
+                  <label>New Password</label>
+                  <input type="password" class="form-control" id="new-pass" autocomplete="new-password" minlength="8" />
+                  <div class="form-hint">Min 8 characters, including uppercase, number and special character</div>
+                </div>
+                <div class="form-group">
+                  <label>Confirm New Password</label>
+                  <input type="password" class="form-control" id="conf-pass" autocomplete="new-password" />
+                </div>
+                <div id="pw-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:12px;"></div>
+                <button type="submit" class="btn btn-primary">Update Password</button>
+              </form>
             </div>
-            <div class="form-group">
-              <label>Confirm New Password</label>
-              <input type="password" class="form-control" id="conf-pass" autocomplete="new-password" />
+          </div>
+
+          <!-- Danger Zone card -->
+          <div class="settings-card danger-zone">
+            <div class="settings-card-header">Danger Zone</div>
+            <div class="settings-card-body">
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-title" style="color:var(--red)">Delete Account</div>
+                  <div class="settings-row-desc">Permanently delete your account and all associated projects, tasks, and risks. This cannot be undone.</div>
+                </div>
+                <button class="btn btn-danger" id="delete-account-btn" style="flex-shrink:0">Delete Account</button>
+              </div>
             </div>
-            <div id="pw-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
-            <button type="submit" class="btn btn-primary">Update Password</button>
-          </form>
+          </div>
+
         </div>
       </div>
     </div>
@@ -91,6 +142,41 @@ export async function renderProfile(app) {
       if (updated.profilePicture) {
         avatarEl.innerHTML = `<img src="${escHtml(updated.profilePicture)}" alt="Avatar" />`;
       }
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  });
+
+  // Username update
+  document.getElementById('account-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button');
+    btn.disabled = true;
+    const fd = new FormData();
+    fd.append('username', document.getElementById('username-input').value.trim());
+    try {
+      const updated = await api.updateProfile(fd);
+      const stored = JSON.parse(localStorage.getItem('orbit_user') || '{}');
+      stored.username = updated.username;
+      localStorage.setItem('orbit_user', JSON.stringify(stored));
+      toast('Display name updated', 'success');
+      // Refresh hero name
+      document.querySelector('.profile-hero-name').textContent = updated.username || updated.email;
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Delete account
+  document.getElementById('delete-account-btn').addEventListener('click', async () => {
+    if (!confirm('Are you sure you want to delete your account? All your projects, tasks and risks will be permanently deleted. This cannot be undone.')) return;
+    try {
+      await api.deleteAccount();
+      localStorage.removeItem('orbit_token');
+      localStorage.removeItem('orbit_user');
+      navigate('/login');
     } catch (err) {
       toast(err.message, 'error');
     }

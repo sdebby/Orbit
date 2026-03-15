@@ -22,7 +22,7 @@ router.post('/', requireAuth, (req, res) => {
   if (!ownsProject(req.user.userId, req.params.projectId)) {
     return res.status(404).json({ error: 'Project not found' });
   }
-  const { title, description } = req.body;
+  const { title, description, color } = req.body;
   if (!title) return res.status(400).json({ error: 'Title is required' });
 
   const maxPos = db.prepare('SELECT MAX(position) as m FROM buckets WHERE project_id = ?')
@@ -30,8 +30,8 @@ router.post('/', requireAuth, (req, res) => {
   const position = (maxPos.m || 0) + 1;
 
   const result = db.prepare(
-    'INSERT INTO buckets (project_id, title, description, position) VALUES (?, ?, ?, ?)'
-  ).run(req.params.projectId, title, description || null, position);
+    'INSERT INTO buckets (project_id, title, description, color, position) VALUES (?, ?, ?, ?, ?)'
+  ).run(req.params.projectId, title, description || null, color || null, position);
 
   const bucket = db.prepare('SELECT * FROM buckets WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(bucket);
@@ -43,9 +43,9 @@ router.put('/:id', requireAuth, (req, res) => {
     .get(req.params.id, req.user.userId);
   if (!bucket) return res.status(404).json({ error: 'Bucket not found' });
 
-  const { title, description, position } = req.body;
-  db.prepare('UPDATE buckets SET title = ?, description = ?, position = ? WHERE id = ?')
-    .run(title || bucket.title, description ?? bucket.description, position ?? bucket.position, bucket.id);
+  const { title, description, color, position } = req.body;
+  db.prepare('UPDATE buckets SET title = ?, description = ?, color = ?, position = ? WHERE id = ?')
+    .run(title || bucket.title, description ?? bucket.description, color !== undefined ? (color || null) : bucket.color, position ?? bucket.position, bucket.id);
 
   const updated = db.prepare('SELECT * FROM buckets WHERE id = ?').get(bucket.id);
   res.json(updated);

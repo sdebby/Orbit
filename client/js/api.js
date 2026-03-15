@@ -38,6 +38,7 @@ export const api = {
 
   // Profile
   updateProfile: (formData) => request('PUT', '/profile', null, formData),
+  deleteAccount: () => request('DELETE', '/profile'),
 
   // Projects
   getProjects: (q, tags) => {

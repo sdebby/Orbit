@@ -70,7 +70,7 @@ Orbit/
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/orbit.git
+git clone https://github.com/sdebby/orbit.git
 cd orbit
 
 # Install server dependencies

@@ -113,6 +113,16 @@ export async function renderBoard(app, params) {
       <button class="bucket-add-btn add-risk" data-bucket="${bucket.id}" style="border-color:var(--red);color:var(--red);">+ Risk</button>
     `;
 
+    // Apply bucket color to header
+    if (bucket.color) {
+      const header = col.querySelector('.bucket-header');
+      header.style.background = bucket.color;
+      header.style.borderRadius = 'var(--radius) var(--radius) 0 0';
+      header.querySelector('.bucket-title').style.color = '#fff';
+      header.querySelector('.bucket-menu-btn').style.color = 'rgba(255,255,255,0.8)';
+      col.querySelector('.text-muted').style.color = 'rgba(255,255,255,0.7)';
+    }
+
     // Bucket menu
     col.querySelector('.bucket-menu-btn').onclick = (e) => {
       e.stopPropagation();
@@ -209,8 +219,30 @@ export async function renderBoard(app, params) {
   }
 
   // ---- Bucket Modal ----
+  const BUCKET_COLORS = [
+    { label: 'None',   value: '' },
+    { label: 'Blue',   value: '#0052cc' },
+    { label: 'Teal',   value: '#00875a' },
+    { label: 'Purple', value: '#8777d9' },
+    { label: 'Red',    value: '#de350b' },
+    { label: 'Orange', value: '#ff8b00' },
+    { label: 'Cyan',   value: '#00b8d9' },
+    { label: 'Pink',   value: '#e91e8c' },
+    { label: 'Yellow', value: '#f5cd47' },
+  ];
+
   function showBucketModal(bucket = null) {
     const isEdit = !!bucket;
+    const currentColor = bucket?.color || '';
+
+    const swatchesHtml = BUCKET_COLORS.map(c => `
+      <button type="button" class="color-swatch ${c.value === currentColor ? 'selected' : ''}"
+        data-color="${c.value}"
+        title="${c.label}"
+        style="background:${c.value || 'var(--gray-300)'}">
+      </button>
+    `).join('');
+
     showModal(`
       <h2>${isEdit ? 'Edit Bucket' : 'Add Bucket'}</h2>
       <form id="bucket-form">
@@ -222,6 +254,10 @@ export async function renderBoard(app, params) {
           <label>Description</label>
           <textarea class="form-control" id="b-desc">${escHtml(bucket?.description || '')}</textarea>
         </div>
+        <div class="form-group">
+          <label>Color</label>
+          <div class="color-swatches">${swatchesHtml}</div>
+        </div>
         <div id="b-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
         ${isEdit ? `<button type="button" class="btn btn-danger btn-sm" id="delete-bucket-btn" style="margin-bottom:12px">Delete Bucket</button>` : ''}
         <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -231,6 +267,16 @@ export async function renderBoard(app, params) {
       </form>
     `);
     document.getElementById('b-cancel').onclick = hideModal;
+
+    // Color swatch selection
+    let selectedColor = currentColor;
+    document.querySelectorAll('.color-swatch').forEach(swatch => {
+      swatch.addEventListener('click', () => {
+        document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+        swatch.classList.add('selected');
+        selectedColor = swatch.dataset.color;
+      });
+    });
 
     if (isEdit) {
       document.getElementById('delete-bucket-btn').onclick = async () => {
@@ -247,12 +293,17 @@ export async function renderBoard(app, params) {
       const errEl = document.getElementById('b-err');
       const btn = e.target.querySelector('[type=submit]');
       btn.disabled = true;
+      const data = {
+        title: document.getElementById('b-title').value,
+        description: document.getElementById('b-desc').value,
+        color: selectedColor,
+      };
       try {
         if (isEdit) {
-          await api.updateBucket(bucket.id, { title: document.getElementById('b-title').value, description: document.getElementById('b-desc').value });
+          await api.updateBucket(bucket.id, data);
           toast('Bucket updated', 'success');
         } else {
-          await api.createBucket(projectId, { title: document.getElementById('b-title').value, description: document.getElementById('b-desc').value });
+          await api.createBucket(projectId, data);
           toast('Bucket added', 'success');
         }
         hideModal();
