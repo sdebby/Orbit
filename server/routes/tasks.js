@@ -86,7 +86,7 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
   `).get(req.params.id, req.user.userId);
   if (!task) return res.status(404).json({ error: 'Task not found' });
 
-  const { description, priority, due_date, tags, position, bucket_id } = req.body;
+  const { description, priority, due_date, tags, position, bucket_id, completed } = req.body;
   const validPriorities = ['Low', 'Medium', 'High'];
   const p = validPriorities.includes(priority) ? priority : task.priority;
 
@@ -99,8 +99,15 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
   const tagsArr = tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : JSON.parse(task.tags || '[]');
   const picture = req.file ? `/uploads/${req.file.filename}` : task.picture;
 
-  db.prepare('UPDATE tasks SET bucket_id = ?, description = ?, priority = ?, due_date = ?, tags = ?, position = ?, picture = ? WHERE id = ?')
-    .run(targetBucketId, description || task.description, p, due_date ?? task.due_date, JSON.stringify(tagsArr), position ?? task.position, picture, task.id);
+  let completedAt = task.completed_at;
+  if (completed === 'true' || completed === true) {
+    completedAt = completedAt || Math.floor(Date.now() / 1000);
+  } else if (completed === 'false' || completed === false) {
+    completedAt = null;
+  }
+
+  db.prepare('UPDATE tasks SET bucket_id = ?, description = ?, priority = ?, due_date = ?, tags = ?, position = ?, picture = ?, completed_at = ? WHERE id = ?')
+    .run(targetBucketId, description || task.description, p, due_date ?? task.due_date, JSON.stringify(tagsArr), position ?? task.position, picture, completedAt, task.id);
 
   const updated = db.prepare('SELECT * FROM tasks WHERE id = ?').get(task.id);
   res.json({ ...updated, tags: JSON.parse(updated.tags) });

@@ -164,7 +164,7 @@ export async function renderBoard(app, params) {
     col.querySelectorAll(`#tasks-${bucket.id} .task-card`).forEach(card => {
       card.onclick = () => {
         const task = tasks.find(t => t.id == card.dataset.id);
-        if (task) showTaskModal(bucket.id, task);
+        if (task && !task.completed_at) showTaskModal(bucket.id, task);
       };
       card.querySelector('.card-edit-btn')?.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -177,6 +177,18 @@ export async function renderBoard(app, params) {
         await api.deleteTask(card.dataset.id);
         toast('Task deleted', 'success');
         await loadAll();
+      });
+      card.querySelector('.task-check-btn')?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const task = tasks.find(t => t.id == card.dataset.id);
+        if (!task) return;
+        const nowDone = !task.completed_at;
+        try {
+          await api.updateTask(task.id, { completed: nowDone });
+          await loadAll();
+        } catch (err) {
+          toast(err.message, 'error');
+        }
       });
     });
 
@@ -208,18 +220,29 @@ export async function renderBoard(app, params) {
 
   function taskCardHtml(t) {
     const overdue = isOverdue(t.due_date);
+    const doneDate = t.completed_at
+      ? formatDate(new Date(t.completed_at * 1000).toISOString().split('T')[0])
+      : null;
     return `
-      <div class="card task-card" data-id="${t.id}">
+      <div class="card task-card ${t.completed_at ? 'task-done' : ''}" data-id="${t.id}">
         <div class="card-actions">
-          <button class="card-action-btn card-edit-btn" title="Edit">&#9998;</button>
+          ${!t.completed_at ? `<button class="card-action-btn card-edit-btn" title="Edit">&#9998;</button>` : ''}
           <button class="card-action-btn card-delete-btn" title="Delete">&#128465;</button>
         </div>
         <div class="card-type-badge task">Task</div>
         ${t.picture ? `<img src="${escHtml(t.picture)}" style="width:100%;height:80px;object-fit:cover;border-radius:4px;margin-bottom:6px" />` : ''}
-        <div class="card-description">${escHtml(t.description)}</div>
+        <div class="task-body">
+          <button class="task-check-btn ${t.completed_at ? 'checked' : ''}" title="${t.completed_at ? 'Mark as incomplete' : 'Mark as done'}">
+            ${t.completed_at ? '&#10003;' : ''}
+          </button>
+          <div class="card-description">${escHtml(t.description)}</div>
+        </div>
         <div class="card-footer">
-          <span class="priority ${t.priority}">${t.priority}</span>
-          ${t.due_date ? `<span class="due-date ${overdue ? 'overdue' : ''}">${formatDate(t.due_date)}</span>` : ''}
+          ${doneDate
+            ? `<span class="task-done-date">&#10003; Done ${doneDate}</span>`
+            : `<span class="priority ${t.priority}">${t.priority}</span>
+               ${t.due_date ? `<span class="due-date ${overdue ? 'overdue' : ''}">${formatDate(t.due_date)}</span>` : ''}`
+          }
           ${tagsHtml(t.tags)}
         </div>
       </div>
