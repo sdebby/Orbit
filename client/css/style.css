@@ -522,6 +522,34 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
 }
 
+/* ========= Task completion ========= */
+.task-body { display: flex; align-items: flex-start; gap: 8px; }
+.task-body .card-description { flex: 1; }
+
+.task-check-btn {
+  flex-shrink: 0;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--gray-400);
+  background: none;
+  cursor: pointer;
+  font-size: 11px; font-weight: 700;
+  color: transparent;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  transition: border-color .15s, background .15s, color .15s;
+  margin-top: 1px;
+}
+.task-check-btn:hover { border-color: var(--green); color: var(--green); }
+.task-check-btn.checked {
+  background: var(--green); border-color: var(--green); color: #fff;
+}
+
+.task-done { opacity: .7; }
+.task-done .card-description { text-decoration: line-through; color: var(--gray-500); }
+
+.task-done-date { font-size: 11px; font-weight: 600; color: var(--green); }
+
 /* Priority badges */
 .priority { font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
 .priority.Low { background: var(--green-bg); color: var(--green); }
