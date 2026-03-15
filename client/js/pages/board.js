@@ -105,12 +105,26 @@ export async function renderBoard(app, params) {
         <span class="text-muted text-sm">${filteredTasks.length + filteredRisks.length}</span>
         <button class="bucket-menu-btn" title="Bucket options">&#8942;</button>
       </div>
-      <div class="bucket-items" id="items-${bucket.id}">
-        ${filteredTasks.map(t => taskCardHtml(t)).join('')}
-        ${filteredRisks.map(r => riskCardHtml(r)).join('')}
+
+      <div class="bucket-storyboard">
+        <textarea class="storyboard-textarea" placeholder="Storyboard…" rows="3">${escHtml(bucket.description || '')}</textarea>
       </div>
-      <button class="bucket-add-btn add-task" data-bucket="${bucket.id}">+ Task</button>
-      <button class="bucket-add-btn add-risk" data-bucket="${bucket.id}" style="border-color:var(--red);color:var(--red);">+ Risk</button>
+
+      <div class="bucket-section tasks-section">
+        <div class="bucket-section-label">Tasks</div>
+        <div class="bucket-items" id="tasks-${bucket.id}">
+          ${filteredTasks.map(t => taskCardHtml(t)).join('')}
+        </div>
+        <button class="bucket-add-btn add-task" data-bucket="${bucket.id}">+ Task</button>
+      </div>
+
+      <div class="bucket-section risks-section">
+        <div class="bucket-section-label">Risks</div>
+        <div class="bucket-items" id="risks-${bucket.id}">
+          ${filteredRisks.map(r => riskCardHtml(r)).join('')}
+        </div>
+        <button class="bucket-add-btn add-risk" data-bucket="${bucket.id}" style="border-color:var(--red);color:var(--red);">+ Risk</button>
+      </div>
     `;
 
     // Apply bucket color to header
@@ -123,6 +137,20 @@ export async function renderBoard(app, params) {
       col.querySelector('.text-muted').style.color = 'rgba(255,255,255,0.7)';
     }
 
+    // Storyboard inline save on blur
+    const storyboard = col.querySelector('.storyboard-textarea');
+    let storyboardOriginal = bucket.description || '';
+    storyboard.addEventListener('blur', async () => {
+      const val = storyboard.value;
+      if (val === storyboardOriginal) return;
+      try {
+        await api.updateBucket(bucket.id, { description: val });
+        storyboardOriginal = val;
+      } catch {
+        storyboard.value = storyboardOriginal;
+      }
+    });
+
     // Bucket menu
     col.querySelector('.bucket-menu-btn').onclick = (e) => {
       e.stopPropagation();
@@ -133,7 +161,7 @@ export async function renderBoard(app, params) {
     col.querySelector('.bucket-title').onclick = () => showBucketModal(bucket);
 
     // Task cards
-    col.querySelectorAll('.task-card').forEach(card => {
+    col.querySelectorAll(`#tasks-${bucket.id} .task-card`).forEach(card => {
       card.onclick = () => {
         const task = tasks.find(t => t.id == card.dataset.id);
         if (task) showTaskModal(bucket.id, task);
@@ -153,7 +181,7 @@ export async function renderBoard(app, params) {
     });
 
     // Risk cards
-    col.querySelectorAll('.risk-card').forEach(card => {
+    col.querySelectorAll(`#risks-${bucket.id} .risk-card`).forEach(card => {
       card.onclick = () => {
         const risk = risks.find(r => r.id == card.dataset.id);
         if (risk) showRiskModal(bucket.id, risk);
