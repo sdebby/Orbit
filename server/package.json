@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
     "express": "^4.19.2",
     "express-rate-limit": "^8.3.1",
     "hash-wasm": "^4.12.0",
