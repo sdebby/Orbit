@@ -172,6 +172,13 @@ input, textarea, select { font: inherit; }
 }
 .navbar-brand span { opacity: .7; font-weight: 400; }
 .navbar-spacer { flex: 1; }
+.navbar-username {
+  color: var(--white);
+  font-size: 14px;
+  font-weight: 600;
+  opacity: .9;
+  letter-spacing: .2px;
+}
 .navbar-btn {
   background: rgba(255,255,255,.15);
   border: 1px solid rgba(255,255,255,.3);
@@ -550,6 +557,19 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 
 .task-done-date { font-size: 11px; font-weight: 600; color: var(--green); }
 
+/* Done tasks collapsible */
+.done-tasks-section { margin-top: 6px; }
+.done-tasks-toggle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; color: var(--gray-500);
+  cursor: pointer; padding: 4px 8px; border-radius: var(--radius);
+  list-style: none; user-select: none;
+}
+.done-tasks-toggle::-webkit-details-marker { display: none; }
+.done-tasks-toggle::marker { display: none; }
+.done-tasks-toggle:hover { background: var(--gray-200); color: var(--gray-700); }
+.done-tasks-list { margin-top: 4px; }
+
 /* Priority badges */
 .priority { font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
 .priority.Low { background: var(--green-bg); color: var(--green); }
@@ -648,6 +668,45 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .add-bucket-btn:hover {
   background: rgba(255,255,255,.5);
   color: var(--gray-900);
+}
+
+.add-col-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+.add-col-btns .add-bucket-btn {
+  width: 180px;
+}
+.add-risk-col-btn {
+  width: 180px;
+  background: rgba(255,255,255,.3);
+  border: 2px dashed rgba(222,53,11,.5);
+  border-radius: var(--radius);
+  color: var(--red);
+  padding: 12px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all .15s;
+  text-align: center;
+}
+.add-risk-col-btn:hover {
+  background: rgba(222,53,11,.08);
+}
+
+.risk-col-header {
+  background: var(--red) !important;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.risk-col-header .bucket-title,
+.risk-col-header .risk-col-count {
+  color: #fff !important;
+}
+.risk-col-header .risk-col-count {
+  font-size: 13px;
+  opacity: .8;
 }
 
 /* Card action icons */

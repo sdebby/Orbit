@@ -70,10 +70,10 @@ export const api = {
   deleteTask: (id) => request('DELETE', `/tasks/${id}`),
 
   // Risks
-  getRisks: (bucketId) => request('GET', `/buckets/${bucketId}/risks`),
-  createRisk: (bucketId, data) => data instanceof FormData
-    ? request('POST', `/buckets/${bucketId}/risks`, null, data)
-    : request('POST', `/buckets/${bucketId}/risks`, data),
+  getRisks: (projectId) => request('GET', `/projects/${projectId}/risks`),
+  createRisk: (projectId, data) => data instanceof FormData
+    ? request('POST', `/projects/${projectId}/risks`, null, data)
+    : request('POST', `/projects/${projectId}/risks`, data),
   updateRisk: (id, data) => data instanceof FormData
     ? request('PUT', `/risks/${id}`, null, data)
     : request('PUT', `/risks/${id}`, data),

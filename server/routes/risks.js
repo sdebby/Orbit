@@ -25,35 +25,46 @@ const upload = multer({
   fileFilter: imageFilter,
 });
 
-function ownsBucket(userId, bucketId) {
-  return db.prepare('SELECT b.id FROM buckets b JOIN projects p ON b.project_id = p.id WHERE b.id = ? AND p.user_id = ?')
-    .get(bucketId, userId);
+function ownsProject(userId, projectId) {
+  return db.prepare('SELECT id FROM projects WHERE id = ? AND user_id = ?').get(projectId, userId);
+}
+
+function ownsRisk(userId, riskId) {
+  return db.prepare(`
+    SELECT r.* FROM risks r
+    JOIN projects p ON r.project_id = p.id
+    WHERE r.id = ? AND p.user_id = ?
+  `).get(riskId, userId);
 }
 
 function computeRpn(severity, probability, detectability) {
   return severity * probability * detectability;
 }
 
-// GET /api/buckets/:bucketId/risks
-router.get('/', requireAuth, (req, res) => {
-  if (!ownsBucket(req.user.userId, req.params.bucketId)) {
-    return res.status(404).json({ error: 'Bucket not found' });
-  }
-  const risks = db.prepare('SELECT * FROM risks WHERE bucket_id = ? ORDER BY position ASC, created_at ASC')
-    .all(req.params.bucketId);
-  res.json(risks.map(r => ({
+function serializeRisk(r) {
+  return {
     ...r,
     tags: JSON.parse(r.tags || '[]'),
     photos: JSON.parse(r.photos || '[]'),
     solution_photos: JSON.parse(r.solution_photos || '[]'),
     rpn: computeRpn(r.severity, r.probability, r.detectability),
-  })));
+  };
+}
+
+// GET /api/projects/:projectId/risks
+router.get('/', requireAuth, (req, res) => {
+  if (!ownsProject(req.user.userId, req.params.projectId)) {
+    return res.status(404).json({ error: 'Project not found' });
+  }
+  const risks = db.prepare('SELECT * FROM risks WHERE project_id = ? ORDER BY position ASC, created_at ASC')
+    .all(req.params.projectId);
+  res.json(risks.map(serializeRisk));
 });
 
-// POST /api/buckets/:bucketId/risks
+// POST /api/projects/:projectId/risks
 router.post('/', requireAuth, upload.single('photo'), (req, res) => {
-  if (!ownsBucket(req.user.userId, req.params.bucketId)) {
-    return res.status(404).json({ error: 'Bucket not found' });
+  if (!ownsProject(req.user.userId, req.params.projectId)) {
+    return res.status(404).json({ error: 'Project not found' });
   }
 
   const { description, severity, probability, detectability, solution_description, status, tags } = req.body;
@@ -66,50 +77,28 @@ router.post('/', requireAuth, upload.single('photo'), (req, res) => {
   const tagsArr = tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : [];
   const photosArr = req.file ? [`/uploads/${req.file.filename}`] : [];
 
-  const maxPos = db.prepare('SELECT MAX(position) as m FROM risks WHERE bucket_id = ?').get(req.params.bucketId);
+  const maxPos = db.prepare('SELECT MAX(position) as m FROM risks WHERE project_id = ?').get(req.params.projectId);
   const position = (maxPos.m || 0) + 1;
 
   const result = db.prepare(`
-    INSERT INTO risks (bucket_id, description, severity, probability, detectability, solution_description, status, tags, photos, position)
+    INSERT INTO risks (project_id, description, severity, probability, detectability, solution_description, status, tags, photos, position)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(req.params.bucketId, description, s, pr, d, solution_description || null, validStatus, JSON.stringify(tagsArr), JSON.stringify(photosArr), position);
+  `).run(req.params.projectId, description, s, pr, d, solution_description || null, validStatus, JSON.stringify(tagsArr), JSON.stringify(photosArr), position);
 
   const risk = db.prepare('SELECT * FROM risks WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json({
-    ...risk,
-    tags: JSON.parse(risk.tags),
-    photos: JSON.parse(risk.photos || '[]'),
-    solution_photos: JSON.parse(risk.solution_photos || '[]'),
-    rpn: computeRpn(risk.severity, risk.probability, risk.detectability),
-  });
+  res.status(201).json(serializeRisk(risk));
 });
 
 // GET /api/risks/:id
 router.get('/:id', requireAuth, (req, res) => {
-  const risk = db.prepare(`
-    SELECT r.* FROM risks r
-    JOIN buckets b ON r.bucket_id = b.id
-    JOIN projects p ON b.project_id = p.id
-    WHERE r.id = ? AND p.user_id = ?
-  `).get(req.params.id, req.user.userId);
+  const risk = ownsRisk(req.user.userId, req.params.id);
   if (!risk) return res.status(404).json({ error: 'Risk not found' });
-  res.json({
-    ...risk,
-    tags: JSON.parse(risk.tags || '[]'),
-    photos: JSON.parse(risk.photos || '[]'),
-    solution_photos: JSON.parse(risk.solution_photos || '[]'),
-    rpn: computeRpn(risk.severity, risk.probability, risk.detectability),
-  });
+  res.json(serializeRisk(risk));
 });
 
 // PUT /api/risks/:id
 router.put('/:id', requireAuth, upload.single('photo'), (req, res) => {
-  const risk = db.prepare(`
-    SELECT r.* FROM risks r
-    JOIN buckets b ON r.bucket_id = b.id
-    JOIN projects p ON b.project_id = p.id
-    WHERE r.id = ? AND p.user_id = ?
-  `).get(req.params.id, req.user.userId);
+  const risk = ownsRisk(req.user.userId, req.params.id);
   if (!risk) return res.status(404).json({ error: 'Risk not found' });
 
   const { description, severity, probability, detectability, solution_description, status, tags, position } = req.body;
@@ -131,25 +120,13 @@ router.put('/:id', requireAuth, upload.single('photo'), (req, res) => {
   );
 
   const updated = db.prepare('SELECT * FROM risks WHERE id = ?').get(risk.id);
-  res.json({
-    ...updated,
-    tags: JSON.parse(updated.tags),
-    photos: JSON.parse(updated.photos || '[]'),
-    solution_photos: JSON.parse(updated.solution_photos || '[]'),
-    rpn: computeRpn(updated.severity, updated.probability, updated.detectability),
-  });
+  res.json(serializeRisk(updated));
 });
 
 // DELETE /api/risks/:id
 router.delete('/:id', requireAuth, (req, res) => {
-  const risk = db.prepare(`
-    SELECT r.* FROM risks r
-    JOIN buckets b ON r.bucket_id = b.id
-    JOIN projects p ON b.project_id = p.id
-    WHERE r.id = ? AND p.user_id = ?
-  `).get(req.params.id, req.user.userId);
+  const risk = ownsRisk(req.user.userId, req.params.id);
   if (!risk) return res.status(404).json({ error: 'Risk not found' });
-
   db.prepare('DELETE FROM risks WHERE id = ?').run(risk.id);
   res.json({ message: 'Risk deleted' });
 });
