@@ -194,10 +194,12 @@ function projectColor(id) {
 
 export function navbarHtml() {
   const user = JSON.parse(localStorage.getItem('orbit_user') || '{}');
-  const initial = (user.email || '?').charAt(0).toUpperCase();
+  const displayName = user.username || user.email || '';
   return `
     <nav class="navbar">
       <span class="navbar-brand">Orbit</span>
+      <span class="navbar-spacer"></span>
+      ${displayName ? `<span class="navbar-username">${displayName}</span>` : ''}
       <span class="navbar-spacer"></span>
       <button class="nav-link" id="nav-profile">Profile</button>
       <button class="nav-link" id="nav-logout">Sign out</button>

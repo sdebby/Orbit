@@ -86,6 +86,36 @@ try { _db.exec('ALTER TABLE buckets ADD COLUMN color TEXT'); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN username TEXT'); } catch {}
 try { _db.exec('ALTER TABLE tasks ADD COLUMN completed_at INTEGER'); } catch {}
 
+// Migrate risks from bucket-level to project-level
+try {
+  _db.exec('SELECT bucket_id FROM risks LIMIT 0'); // throws if already migrated
+  _db.exec(`
+    PRAGMA foreign_keys = OFF;
+    CREATE TABLE risks_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      description TEXT NOT NULL,
+      photos TEXT DEFAULT '[]',
+      severity INTEGER DEFAULT 5,
+      probability INTEGER DEFAULT 5,
+      detectability INTEGER DEFAULT 5,
+      solution_description TEXT,
+      solution_photos TEXT DEFAULT '[]',
+      status TEXT DEFAULT 'Open',
+      tags TEXT DEFAULT '[]',
+      position INTEGER DEFAULT 0,
+      created_at INTEGER DEFAULT (unixepoch()),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    INSERT OR IGNORE INTO risks_v2 (id, project_id, description, photos, severity, probability, detectability, solution_description, solution_photos, status, tags, position, created_at)
+      SELECT r.id, b.project_id, r.description, r.photos, r.severity, r.probability, r.detectability, r.solution_description, r.solution_photos, r.status, r.tags, r.position, r.created_at
+      FROM risks r JOIN buckets b ON r.bucket_id = b.id;
+    DROP TABLE risks;
+    ALTER TABLE risks_v2 RENAME TO risks;
+    PRAGMA foreign_keys = ON;
+  `);
+} catch {}
+
 // node-sqlite3-wasm requires params as an array, unlike better-sqlite3 which uses spread.
 // This wrapper normalises the API so routes work with spread args.
 class Statement {

@@ -38,7 +38,7 @@ app.use('/api/auth', authLimiter, require('./routes/auth'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/projects/:projectId/buckets', require('./routes/buckets'));
 app.use('/api/buckets/:bucketId/tasks', require('./routes/tasks'));
-app.use('/api/buckets/:bucketId/risks', require('./routes/risks'));
+app.use('/api/projects/:projectId/risks', require('./routes/risks'));
 app.use('/api/profile', require('./routes/profile'));
 
 // Standalone bucket/task/risk routes (without prefix context)

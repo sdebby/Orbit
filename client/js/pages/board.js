@@ -26,7 +26,7 @@ export async function renderBoard(app, params) {
   setupNavbar();
   document.getElementById('back-btn').onclick = () => navigate('/projects');
 
-  let project, buckets, itemsByBucket = {};
+  let project, buckets, itemsByBucket = {}, projectRisks = [];
   let searchQ = '';
 
   async function loadAll() {
@@ -53,10 +53,12 @@ export async function renderBoard(app, params) {
         container.classList.remove('has-bg');
       }
 
-      await Promise.all(buckets.map(async b => {
-        const [tasks, risks] = await Promise.all([api.getTasks(b.id), api.getRisks(b.id)]);
-        itemsByBucket[b.id] = { tasks, risks };
-      }));
+      const [risks, ...taskResults] = await Promise.all([
+        api.getRisks(projectId),
+        ...buckets.map(b => api.getTasks(b.id)),
+      ]);
+      projectRisks = risks;
+      buckets.forEach((b, i) => { itemsByBucket[b.id] = { tasks: taskResults[i] }; });
       renderBoard();
     } catch (err) {
       document.getElementById('board-scroll').innerHTML = `<p style="color:var(--red);padding:20px">${escHtml(err.message)}</p>`;
@@ -73,12 +75,21 @@ export async function renderBoard(app, params) {
       scroll.appendChild(col);
     });
 
-    // Add bucket button
-    const addBtn = document.createElement('button');
-    addBtn.className = 'add-bucket-btn';
-    addBtn.textContent = '+ Add Bucket';
-    addBtn.onclick = () => showBucketModal();
-    scroll.appendChild(addBtn);
+    const filteredProjectRisks = filterItems(projectRisks);
+    if (filteredProjectRisks.length > 0) {
+      scroll.appendChild(createProjectRiskCol(filteredProjectRisks));
+    }
+
+    // Stacked add buttons
+    const addWrap = document.createElement('div');
+    addWrap.className = 'add-col-btns';
+    addWrap.innerHTML = `
+      <button class="add-bucket-btn">+ Add Bucket</button>
+      <button class="add-risk-col-btn">+ Add Risk</button>
+    `;
+    addWrap.querySelector('.add-bucket-btn').onclick = () => showBucketModal();
+    addWrap.querySelector('.add-risk-col-btn').onclick = () => showRiskModal();
+    scroll.appendChild(addWrap);
   }
 
   function filterItems(items) {
@@ -95,14 +106,15 @@ export async function renderBoard(app, params) {
     col.className = 'bucket-col';
     col.dataset.id = bucket.id;
 
-    const { tasks, risks } = itemsByBucket[bucket.id] || { tasks: [], risks: [] };
+    const { tasks } = itemsByBucket[bucket.id] || { tasks: [] };
     const filteredTasks = filterItems(tasks);
-    const filteredRisks = filterItems(risks);
+    const activeTasks = filteredTasks.filter(t => !t.completed_at);
+    const doneTasks = filteredTasks.filter(t => t.completed_at);
 
     col.innerHTML = `
       <div class="bucket-header">
         <span class="bucket-title" title="${escHtml(bucket.title)}">${escHtml(bucket.title)}</span>
-        <span class="text-muted text-sm">${filteredTasks.length + filteredRisks.length}</span>
+        <span class="text-muted text-sm">${activeTasks.length}</span>
         <button class="bucket-menu-btn" title="Bucket options">&#8942;</button>
       </div>
 
@@ -113,17 +125,17 @@ export async function renderBoard(app, params) {
       <div class="bucket-section tasks-section">
         <div class="bucket-section-label">Tasks</div>
         <div class="bucket-items" id="tasks-${bucket.id}">
-          ${filteredTasks.map(t => taskCardHtml(t)).join('')}
+          ${activeTasks.map(t => taskCardHtml(t)).join('')}
         </div>
+        ${doneTasks.length > 0 ? `
+          <details class="done-tasks-section">
+            <summary class="done-tasks-toggle">&#10003; ${doneTasks.length} Done</summary>
+            <div class="bucket-items done-tasks-list">
+              ${doneTasks.map(t => taskCardHtml(t)).join('')}
+            </div>
+          </details>
+        ` : ''}
         <button class="bucket-add-btn add-task" data-bucket="${bucket.id}">+ Task</button>
-      </div>
-
-      <div class="bucket-section risks-section">
-        <div class="bucket-section-label">Risks</div>
-        <div class="bucket-items" id="risks-${bucket.id}">
-          ${filteredRisks.map(r => riskCardHtml(r)).join('')}
-        </div>
-        <button class="bucket-add-btn add-risk" data-bucket="${bucket.id}" style="border-color:var(--red);color:var(--red);">+ Risk</button>
       </div>
     `;
 
@@ -160,8 +172,8 @@ export async function renderBoard(app, params) {
     // Bucket title click to edit
     col.querySelector('.bucket-title').onclick = () => showBucketModal(bucket);
 
-    // Task cards
-    col.querySelectorAll(`#tasks-${bucket.id} .task-card`).forEach(card => {
+    // Task cards (active + done)
+    col.querySelectorAll('.task-card').forEach(card => {
       card.onclick = () => {
         const task = tasks.find(t => t.id == card.dataset.id);
         if (task && !task.completed_at) showTaskModal(bucket.id, task);
@@ -192,16 +204,35 @@ export async function renderBoard(app, params) {
       });
     });
 
-    // Risk cards
-    col.querySelectorAll(`#risks-${bucket.id} .risk-card`).forEach(card => {
+    col.querySelector('.add-task').onclick = () => showTaskModal(bucket.id);
+
+    return col;
+  }
+
+  function createProjectRiskCol(risks) {
+    const col = document.createElement('div');
+    col.className = 'bucket-col risk-col';
+
+    col.innerHTML = `
+      <div class="bucket-header risk-col-header">
+        <span class="bucket-title">Risks</span>
+        <span class="risk-col-count">${risks.length}</span>
+      </div>
+      <div class="bucket-items" id="project-risks">
+        ${risks.map(r => riskCardHtml(r)).join('')}
+      </div>
+      <button class="bucket-add-btn add-risk" style="border-color:var(--red);color:var(--red);">+ Risk</button>
+    `;
+
+    col.querySelectorAll('#project-risks .risk-card').forEach(card => {
       card.onclick = () => {
-        const risk = risks.find(r => r.id == card.dataset.id);
-        if (risk) showRiskModal(bucket.id, risk);
+        const risk = projectRisks.find(r => r.id == card.dataset.id);
+        if (risk) showRiskModal(risk);
       };
       card.querySelector('.card-edit-btn')?.addEventListener('click', (e) => {
         e.stopPropagation();
-        const risk = risks.find(r => r.id == card.dataset.id);
-        if (risk) showRiskModal(bucket.id, risk);
+        const risk = projectRisks.find(r => r.id == card.dataset.id);
+        if (risk) showRiskModal(risk);
       });
       card.querySelector('.card-delete-btn')?.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -212,9 +243,7 @@ export async function renderBoard(app, params) {
       });
     });
 
-    col.querySelector('.add-task').onclick = () => showTaskModal(bucket.id);
-    col.querySelector('.add-risk').onclick = () => showRiskModal(bucket.id);
-
+    col.querySelector('.add-risk').onclick = () => showRiskModal();
     return col;
   }
 
@@ -439,7 +468,7 @@ export async function renderBoard(app, params) {
   }
 
   // ---- Risk Modal ----
-  function showRiskModal(bucketId, risk = null) {
+  function showRiskModal(risk = null) {
     const isEdit = !!risk;
     const sv = risk?.severity || 5, pr = risk?.probability || 5, de = risk?.detectability || 5;
     showModal(`
@@ -535,7 +564,7 @@ export async function renderBoard(app, params) {
           await api.updateRisk(risk.id, fd);
           toast('Risk updated', 'success');
         } else {
-          await api.createRisk(bucketId, fd);
+          await api.createRisk(projectId, fd);
           toast('Risk added', 'success');
         }
         hideModal();
