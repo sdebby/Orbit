@@ -34,4 +34,25 @@ async function sendPasswordResetEmail(toEmail, resetLink) {
   });
 }
 
-module.exports = { sendPasswordResetEmail };
+async function sendVerificationEmail(toEmail, verifyLink) {
+  const subject = 'Orbit — Verify your email address';
+  const html = `
+    <p>Welcome to Orbit! Please verify your email address to activate your account.</p>
+    <p><a href="${verifyLink}">Click here to verify your email</a></p>
+    <p>This link expires in 30 minutes. If you did not create an account, ignore this email.</p>
+  `;
+
+  if (!transporter) {
+    console.log(`[EMAIL - no SMTP configured]\nTo: ${toEmail}\nSubject: ${subject}\n${verifyLink}`);
+    return;
+  }
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || 'no-reply@orbit.app',
+    to: toEmail,
+    subject,
+    html,
+  });
+}
+
+module.exports = { sendPasswordResetEmail, sendVerificationEmail };

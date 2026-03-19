@@ -85,6 +85,11 @@ _db.exec(`
 try { _db.exec('ALTER TABLE buckets ADD COLUMN color TEXT'); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN username TEXT'); } catch {}
 try { _db.exec('ALTER TABLE tasks ADD COLUMN completed_at INTEGER'); } catch {}
+try { _db.exec('ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0'); } catch {}
+try { _db.exec('ALTER TABLE users ADD COLUMN verify_token TEXT'); } catch {}
+try { _db.exec('ALTER TABLE users ADD COLUMN verify_token_expires INTEGER'); } catch {}
+// Mark existing accounts (created before verification was introduced) as already verified
+try { _db.exec("UPDATE users SET email_verified = 1 WHERE email_verified IS NULL OR (verify_token IS NULL AND email_verified = 0)"); } catch {}
 
 // Migrate risks from bucket-level to project-level
 try {

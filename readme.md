@@ -1,18 +1,18 @@
 # Orbit
 
-A personal project management web app inspired by Trello and Microsoft Planner. Organize work into projects, break them into kanban-style buckets, and track tasks and risks — complete with RPN scoring, file attachments, bucket colors, and dark mode.
+A personal project management web app inspired by Trello and Microsoft Planner. Organize work into projects, break them into kanban-style buckets, and track tasks and risks — complete with RPN scoring, file attachments, bucket colors, drag-and-drop reordering, and dark mode.
 
 ---
 
 ## Features
 
-- **Projects** — create and manage projects with cover images and tags; edit from the board header
-- **Kanban boards** — unlimited buckets per project with custom header colors and inline storyboard notes
-- **Tasks** — priority levels, due dates, picture attachments, and tags
-- **Risk management** — severity / probability / detectability scoring with automatic RPN calculation, solution tracking, and status (Open / Resolved)
-- **Authentication** — JWT-based login, registration, forgot/reset password via email (SMTP)
+- **Projects** — create and manage projects with cover images and tags; edit from the projects page
+- **Kanban boards** — unlimited buckets per project with custom header colors, inline storyboard notes, and drag-and-drop column reordering
+- **Tasks** — priority levels (Low / Medium / High), due dates, picture attachments, tags, and completion tracking; done tasks collapse into a "✓ N Done" section per column
+- **Risk management** — severity / probability / detectability scoring with automatic RPN calculation (S × P × D), solution tracking, and status (Open / Resolved); risks shown in a dedicated column on the board
+- **Authentication** — JWT-based login, registration with email verification (link expires in 30 minutes), forgot/reset password via email (SMTP)
 - **Profile** — display name, avatar upload, password change, dark / light mode toggle, delete account
-- **Security** — argon2id password hashing, rate limiting on auth endpoints, file type restrictions (jpg/png only)
+- **Security** — Argon2id password hashing, Helmet security headers, CORS origin restriction, CSRF origin check, rate limiting, UUID-randomised upload filenames, XSS escaping, timing-attack mitigation on forgot-password
 
 ---
 
@@ -21,13 +21,16 @@ A personal project management web app inspired by Trello and Microsoft Planner. 
 | Layer | Technology |
 |-------|-----------|
 | Frontend | Vanilla JS (ES modules), SPA with hash-based routing |
-| Backend | Node.js + Express |
+| Backend | Node.js + Express 4 |
 | Database | SQLite via `node-sqlite3-wasm` (no native compilation required) |
-| Auth | JSON Web Tokens (7-day expiry) |
-| Password hashing | argon2id via `hash-wasm` (WASM, no native build needed) |
-| File uploads | Multer (jpg/png/jpeg only, 5 MB limit) |
-| Email | Nodemailer via SMTP (console fallback if not configured) |
+| Auth | JSON Web Tokens — 7-day expiry, Bearer header |
+| Password hashing | Argon2id via `hash-wasm` (WASM, no native build needed) |
+| File uploads | Multer — jpg/png/jpeg only, UUID filenames |
+| Email | Nodemailer via SMTP (console fallback when not configured) |
+| Security headers | Helmet (CSP, HSTS, etc.) |
+| Rate limiting | `express-rate-limit` |
 | Config | `dotenv` — environment variables from `server/.env` |
+| Dev | `nodemon` |
 
 ---
 
@@ -35,30 +38,46 @@ A personal project management web app inspired by Trello and Microsoft Planner. 
 
 ```
 Orbit/
+├── assets/                  # Design assets and icons
 ├── client/                  # Frontend SPA (served as static files)
 │   ├── index.html
+│   ├── favicon.ico
+│   ├── icon-light-512.png
+│   ├── icon-dark-512.png
 │   ├── css/
+│   │   └── style.css
 │   └── js/
-│       ├── app.js
-│       ├── api.js
-│       ├── router.js
-│       ├── utils.js
+│       ├── app.js           # Bootstrap, auth guard, route registration
+│       ├── api.js           # Fetch wrappers for all API calls
+│       ├── router.js        # Hash-based SPA router
+│       ├── utils.js         # toast, showModal, escHtml, tagsInput, etc.
 │       └── pages/
 │           ├── login.js
 │           ├── register.js
 │           ├── forgot-password.js
+│           ├── verify-email.js
 │           ├── projects.js
 │           ├── board.js
 │           └── profile.js
 └── server/                  # REST API
-    ├── server.js
+    ├── server.js            # Express app, middleware, route mounts
     ├── .env                 # Local config (not committed)
     ├── models/
+    │   └── db.js            # SQLite init, migrations, Statement wrapper
     ├── routes/
+    │   ├── auth.js
+    │   ├── projects.js
+    │   ├── buckets.js
+    │   ├── tasks.js
+    │   ├── risks.js
+    │   └── profile.js
     ├── middleware/
+    │   └── auth.js          # requireAuth + signToken (JWT)
     ├── utils/
-    ├── uploads/             # Uploaded images (auto-created)
-    └── data/                # SQLite database file (auto-created)
+    │   ├── hash.js          # hashPassword (Argon2id), verifyPassword, sha512
+    │   └── email.js         # sendPasswordResetEmail, sendVerificationEmail
+    ├── uploads/             # Uploaded images (auto-created, gitignored)
+    └── data/                # SQLite database file (auto-created, gitignored)
 ```
 
 ---
@@ -96,7 +115,7 @@ APP_URL=http://localhost:3000
 # Security — generate with: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 JWT_SECRET=your-secret-here
 
-# Email (SMTP) — required for forgot-password emails
+# Email (SMTP) — required for registration verification and forgot-password emails
 # Gmail: use an App Password from https://myaccount.google.com/apppasswords
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -106,7 +125,7 @@ SMTP_PASS=your-app-password
 SMTP_FROM=your@gmail.com
 ```
 
-> Without SMTP configured, password reset links are printed to the server console instead of being emailed.
+> Without SMTP configured, all email links (verification, password reset) are printed to the server console instead of being sent.
 
 ---
 
@@ -150,15 +169,37 @@ pkill -f "node server.js"
 
 ---
 
+## Registration & Email Verification
+
+New accounts require email verification before sign-in is allowed:
+
+1. User registers with email and password
+2. A verification link is sent to their email (expires in **30 minutes**)
+3. Clicking the link activates the account
+4. User can then sign in normally
+
+Existing accounts created before this feature was introduced are automatically marked as verified.
+
+---
+
 ## Security
 
 | Area | Implementation |
 |------|---------------|
-| Passwords | argon2id with random salt (64 MB memory, 3 iterations) |
-| Tokens | JWT signed with `JWT_SECRET` from environment |
-| Auth rate limiting | 20 req / 15 min on all auth routes; 5 req / hour on forgot-password |
-| File uploads | MIME type + extension whitelist (jpg, jpeg, png); 5 MB max |
+| Passwords | Argon2id with random salt (via `hash-wasm`) |
+| Email lookup | SHA-512 hash stored separately — plaintext email never used for lookup |
+| Tokens | JWT signed with `JWT_SECRET` from environment, 7-day expiry |
+| Email verification | Random 32-byte hex token, expires in 30 minutes |
+| Password reset | Random 32-byte hex token, expires in 1 hour |
+| Auth rate limiting | 20 req / 15 min on register/login; 5 req / hour on forgot-password |
+| CSRF | `Origin` / `Referer` header checked on all mutating requests |
+| Security headers | Helmet with CSP (`self` + `unsafe-inline` for styles) |
+| CORS | Restricted to `APP_URL` env var only |
+| File uploads | MIME type + extension whitelist (jpg, jpeg, png); UUID filenames |
+| Body size | 10 KB limit on JSON / form payloads |
 | Password policy | Min 8 characters, uppercase, number, and special character required |
+| Timing attacks | Forgot-password always responds after a minimum 300 ms delay |
+| XSS | All user content escaped via `escHtml()` before DOM insertion |
 
 ---
 
@@ -166,12 +207,14 @@ pkill -f "node server.js"
 
 | Resource | Endpoints |
 |----------|-----------|
-| Auth | `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/forgot-password`, `POST /api/auth/reset-password/:token` |
-| Profile | `PUT /api/profile`, `DELETE /api/profile` |
-| Projects | `GET/POST /api/projects`, `GET/PUT/DELETE /api/projects/:id` |
-| Buckets | `GET/POST /api/projects/:id/buckets`, `PUT/DELETE /api/buckets/:id` |
-| Tasks | `GET/POST /api/buckets/:id/tasks`, `PUT/DELETE /api/tasks/:id` |
-| Risks | `GET/POST /api/buckets/:id/risks`, `PUT/DELETE /api/risks/:id` |
+| Auth | `POST /api/auth/register` · `POST /api/auth/login` · `GET /api/auth/me` · `GET /api/auth/verify-email/:token` · `POST /api/auth/forgot-password` · `POST /api/auth/reset-password/:token` |
+| Profile | `PUT /api/profile` · `DELETE /api/profile` |
+| Projects | `GET /POST /api/projects` · `GET /PUT /DELETE /api/projects/:id` |
+| Buckets | `GET /POST /api/projects/:id/buckets` · `PUT /DELETE /api/buckets/:id` |
+| Tasks | `GET /POST /api/buckets/:id/tasks` · `GET /PUT /DELETE /api/tasks/:id` |
+| Risks | `GET /POST /api/projects/:id/risks` · `GET /PUT /DELETE /api/risks/:id` |
+
+All authenticated endpoints require `Authorization: Bearer <token>` header.
 
 ---
 

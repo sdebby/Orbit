@@ -1,5 +1,6 @@
 import { api } from '../api.js';
 import { navigate } from '../router.js';
+import { escHtml } from '../utils.js';
 
 export function renderRegister(app) {
   app.innerHTML = `
@@ -75,10 +76,19 @@ export function renderRegister(app) {
     btn.textContent = 'Creating account…';
 
     try {
-      const data = await api.register(email, password);
-      localStorage.setItem('orbit_token', data.token);
-      localStorage.setItem('orbit_user', JSON.stringify({ userId: data.userId, email: data.email, username: data.username }));
-      navigate('/projects');
+      await api.register(email, password);
+      // Replace form with verification notice
+      document.querySelector('.login-form-card').innerHTML = `
+        <div style="text-align:center;padding:12px 0">
+          <div style="font-size:36px;margin-bottom:16px">✉️</div>
+          <h2 class="login-form-title" style="margin-bottom:8px">Check your email</h2>
+          <p class="login-form-sub" style="margin-bottom:24px">
+            We sent a verification link to <strong style="color:#e8eaf2">${escHtml(email)}</strong>.<br/>
+            Your account will not be active until you verify your email address.
+          </p>
+          <a href="#/login" class="login-btn" style="display:block;text-decoration:none;text-align:center">Back to Sign In</a>
+        </div>
+      `;
     } catch (err) {
       errEl.textContent = err.message;
       errEl.style.color = '#ff6b6b';

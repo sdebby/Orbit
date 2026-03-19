@@ -203,9 +203,15 @@ function projectColor(id) {
   return colors[id % colors.length];
 }
 
-export function navbarHtml() {
+export function navbarHtml({ hideProfile = false } = {}) {
   const user = JSON.parse(localStorage.getItem('orbit_user') || '{}');
-  const displayName = user.username || user.email || '';
+  const initial = (user.username || user.email || '?').charAt(0).toUpperCase();
+  const avatarInner = user.profilePicture
+    ? `<img src="${escHtml(user.profilePicture)}" alt="" />`
+    : escHtml(initial);
+  const avatarEl = hideProfile
+    ? `<span class="navbar-avatar">${avatarInner}</span>`
+    : `<button class="navbar-avatar" id="nav-profile" title="Profile">${avatarInner}</button>`;
   return `
     <nav class="navbar">
       <span class="navbar-brand">
@@ -215,8 +221,7 @@ export function navbarHtml() {
       </span>
       <div class="navbar-sep"></div>
       <span class="navbar-spacer"></span>
-      ${displayName ? `<span class="navbar-username">${escHtml(displayName)}</span>` : ''}
-      <button class="nav-link" id="nav-profile">Profile</button>
+      ${avatarEl}
       <button class="nav-link" id="nav-logout">Sign out</button>
     </nav>
   `;
