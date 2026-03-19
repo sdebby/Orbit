@@ -60,14 +60,16 @@ router.post('/login', async (req, res) => {
 });
 
 // POST /api/auth/forgot-password
+// MIN_RESPONSE_MS ensures constant-time response to prevent user enumeration via timing
+const MIN_RESPONSE_MS = 300;
 router.post('/forgot-password', (req, res) => {
+  const start = Date.now();
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
   const emailNorm = email.toLowerCase().trim();
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(emailNorm);
 
-  // Always return success to prevent user enumeration
   if (user) {
     const token = crypto.randomBytes(32).toString('hex');
     const expires = Date.now() + 3600000; // 1 hour
@@ -78,7 +80,12 @@ router.post('/forgot-password', (req, res) => {
     sendPasswordResetEmail(emailNorm, resetLink).catch(console.error);
   }
 
-  res.json({ message: 'If that email exists, a reset link has been sent' });
+  // Always delay to the same minimum duration regardless of whether the user exists
+  const elapsed = Date.now() - start;
+  setTimeout(
+    () => res.json({ message: 'If that email exists, a reset link has been sent' }),
+    Math.max(0, MIN_RESPONSE_MS - elapsed)
+  );
 });
 
 // POST /api/auth/reset-password/:token

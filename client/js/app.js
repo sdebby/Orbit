@@ -7,9 +7,8 @@ import { renderBoard } from './pages/board.js';
 import { renderProfile } from './pages/profile.js';
 
 // Apply saved theme before first render
-if (localStorage.getItem('orbit_theme') === 'dark') {
-  document.body.classList.add('dark');
-}
+const savedTheme = localStorage.getItem('orbit_theme') || 'light';
+document.body.setAttribute('data-theme', savedTheme);
 
 const app = document.getElementById('app');
 
