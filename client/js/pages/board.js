@@ -42,9 +42,11 @@ export async function renderBoard(app, params) {
       }
 
       // Apply project picture as dimmed background
+      // Only allow /uploads/ paths to prevent CSS injection
       const container = document.getElementById('board-container');
-      if (project.picture) {
-        container.style.backgroundImage = `url('${project.picture}')`;
+      const safePicture = project.picture && /^\/uploads\/[\w\-\.]+$/.test(project.picture) ? project.picture : null;
+      if (safePicture) {
+        container.style.backgroundImage = `url('${safePicture}')`;
         container.style.backgroundSize = 'cover';
         container.style.backgroundPosition = 'center';
         container.classList.add('has-bg');
@@ -70,14 +72,23 @@ export async function renderBoard(app, params) {
     if (!scroll) return;
     scroll.innerHTML = '';
 
-    buckets.forEach(bucket => {
-      const col = createBucketCol(bucket);
-      scroll.appendChild(col);
-    });
-
     const filteredProjectRisks = filterItems(projectRisks);
-    if (filteredProjectRisks.length > 0) {
-      scroll.appendChild(createProjectRiskCol(filteredProjectRisks));
+    const riskCol = filteredProjectRisks.length > 0
+      ? createProjectRiskCol(filteredProjectRisks)
+      : null;
+
+    // Insert columns in saved order (risks col position persisted per project)
+    const savedRiskPos = riskCol
+      ? parseInt(localStorage.getItem(`orbit_risks_pos_${projectId}`), 10)
+      : NaN;
+
+    buckets.forEach((bucket, i) => {
+      if (riskCol && i === savedRiskPos) scroll.appendChild(riskCol);
+      scroll.appendChild(createBucketCol(bucket));
+    });
+    // Append risk col at end if not yet inserted (no saved pos, or pos >= buckets.length)
+    if (riskCol && (isNaN(savedRiskPos) || savedRiskPos >= buckets.length)) {
+      scroll.appendChild(riskCol);
     }
 
     // Stacked add buttons
@@ -90,6 +101,84 @@ export async function renderBoard(app, params) {
     addWrap.querySelector('.add-bucket-btn').onclick = () => showBucketModal();
     addWrap.querySelector('.add-risk-col-btn').onclick = () => showRiskModal();
     scroll.appendChild(addWrap);
+
+    makeBoardSortable(scroll);
+  }
+
+  function makeBoardSortable(scroll) {
+    let dragSrc = null;
+
+    scroll.querySelectorAll('.bucket-col').forEach(col => {
+      col.setAttribute('draggable', 'true');
+
+      col.addEventListener('dragstart', (e) => {
+        // Don't start drag when interacting with buttons, inputs, textareas
+        if (e.composedPath().some(el => el.tagName &&
+            ['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'A'].includes(el.tagName))) {
+          e.preventDefault();
+          return;
+        }
+        dragSrc = col;
+        e.dataTransfer.effectAllowed = 'move';
+        requestAnimationFrame(() => col.classList.add('dragging'));
+      });
+
+      col.addEventListener('dragend', () => {
+        col.classList.remove('dragging');
+        scroll.querySelectorAll('.bucket-col').forEach(c => c.classList.remove('drag-over'));
+        if (dragSrc) persistColumnOrder(scroll);
+        dragSrc = null;
+      });
+
+      col.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (!dragSrc || col === dragSrc) return;
+        scroll.querySelectorAll('.bucket-col').forEach(c => c.classList.remove('drag-over'));
+        col.classList.add('drag-over');
+        const rect = col.getBoundingClientRect();
+        if (e.clientX < rect.left + rect.width / 2) {
+          col.before(dragSrc);
+        } else {
+          col.after(dragSrc);
+        }
+      });
+    });
+  }
+
+  async function persistColumnOrder(scroll) {
+    const colEls = [...scroll.querySelectorAll('.bucket-col')];
+
+    // Save risks column position (index in the columns list)
+    const riskIdx = colEls.findIndex(c => c.classList.contains('risk-col'));
+    if (riskIdx !== -1) {
+      // Store as index among bucket cols only (exclude risk col itself)
+      const bucketsBefore = colEls.slice(0, riskIdx).filter(c => !c.classList.contains('risk-col')).length;
+      localStorage.setItem(`orbit_risks_pos_${projectId}`, bucketsBefore);
+    }
+
+    // Update bucket positions to match new DOM order
+    const bucketEls = colEls.filter(c => c.dataset.id);
+    const updates = [];
+    bucketEls.forEach((el, i) => {
+      const bucket = buckets.find(b => b.id == el.dataset.id);
+      if (!bucket) return;
+      const newPos = i + 1;
+      if (bucket.position !== newPos) {
+        bucket.position = newPos;
+        updates.push(api.updateBucket(bucket.id, { position: newPos }));
+      }
+    });
+    // Reorder local buckets array to match new order
+    const orderedIds = bucketEls.map(el => parseInt(el.dataset.id));
+    buckets.sort((a, b) => orderedIds.indexOf(a.id) - orderedIds.indexOf(b.id));
+
+    if (updates.length) {
+      try {
+        await Promise.all(updates);
+      } catch {
+        toast('Failed to save column order', 'error');
+      }
+    }
   }
 
   function filterItems(items) {
@@ -269,7 +358,7 @@ export async function renderBoard(app, params) {
         <div class="card-footer">
           ${doneDate
             ? `<span class="task-done-date">&#10003; Done ${doneDate}</span>`
-            : `<span class="priority ${t.priority}">${t.priority}</span>
+            : `<span class="priority ${escHtml(t.priority)}">${escHtml(t.priority)}</span>
                ${t.due_date ? `<span class="due-date ${overdue ? 'overdue' : ''}">${formatDate(t.due_date)}</span>` : ''}`
           }
           ${tagsHtml(t.tags)}
@@ -291,7 +380,7 @@ export async function renderBoard(app, params) {
         <div class="card-description">${escHtml(r.description)}</div>
         <div class="card-footer">
           <span class="rpn-badge ${cls}" title="RPN = Severity × Probability × Detectability">RPN ${r.rpn}</span>
-          <span class="status-badge ${r.status}">${r.status}</span>
+          <span class="status-badge ${escHtml(r.status)}">${escHtml(r.status)}</span>
           ${tagsHtml(r.tags)}
         </div>
       </div>

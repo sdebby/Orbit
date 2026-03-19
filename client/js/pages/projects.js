@@ -8,18 +8,19 @@ export async function renderProjects(app) {
   app.innerHTML = `
     <div class="app-layout">
       ${navbarHtml()}
+      <div class="projects-subbar">
+        <h1 class="projects-subbar-title">My Projects</h1>
+        <div class="projects-subbar-right">
+          <div class="projects-search-box">
+            <div class="projects-search-icon"></div>
+            <input type="search" id="project-search" placeholder="Search projects…" />
+          </div>
+          <button class="projects-add-btn" id="new-project-btn">+ New Project</button>
+        </div>
+      </div>
       <div class="page-content">
-        <div class="projects-page">
-          <div class="projects-header">
-            <h1>My Projects</h1>
-            <div class="search-bar">
-              <input type="search" class="form-control" id="project-search" placeholder="Search projects…" />
-            </div>
-            <button class="btn btn-primary" id="new-project-btn">+ New Project</button>
-          </div>
-          <div id="projects-grid" class="projects-grid">
-            <div class="spinner-wrap" style="height:200px"><div class="spinner"></div></div>
-          </div>
+        <div id="projects-grid" class="projects-grid">
+          <div class="spinner-wrap" style="height:200px"><div class="spinner"></div></div>
         </div>
       </div>
     </div>
@@ -61,7 +62,7 @@ function renderGrid(grid, projects) {
 
   grid.innerHTML = projects.map(p => `
     <div class="project-card" data-id="${p.id}">
-      <div class="project-card-cover" style="background: ${projectColor(p.id)}">
+      <div class="project-card-cover" style="background:${p.picture ? 'transparent' : projectColor(p.id)}">
         ${p.picture ? `<img src="${escHtml(p.picture)}" alt="" />` : ''}
       </div>
       <div class="project-card-body">
@@ -70,6 +71,7 @@ function renderGrid(grid, projects) {
         <div class="project-card-tags">${tagsHtml(p.tags)}</div>
       </div>
       <div class="project-card-footer">
+        <button class="btn btn-sm btn-ghost edit-project" data-id="${p.id}">Edit</button>
         <button class="btn btn-sm btn-danger delete-project" data-id="${p.id}">Delete</button>
       </div>
     </div>
@@ -79,6 +81,15 @@ function renderGrid(grid, projects) {
     card.addEventListener('click', (e) => {
       if (e.target.closest('.project-card-footer')) return;
       navigate(`/projects/${card.dataset.id}`);
+    });
+  });
+
+  grid.querySelectorAll('.edit-project').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const projects = await api.getProjects();
+      const project = projects.find(p => p.id == btn.dataset.id);
+      if (project) showProjectModal(project, loadProjects);
     });
   });
 
@@ -182,12 +193,12 @@ export function showProjectModal(project = null, onSuccess = null) {
 
 function projectColor(id) {
   const colors = [
-    'linear-gradient(135deg,#0052cc,#172b4d)',
+    'linear-gradient(135deg,#185FA5,#0d3a6e)',
     'linear-gradient(135deg,#00875a,#003629)',
-    'linear-gradient(135deg,#8777d9,#403294)',
-    'linear-gradient(135deg,#de350b,#6b1e0e)',
-    'linear-gradient(135deg,#ff8b00,#994600)',
-    'linear-gradient(135deg,#00b8d9,#006882)',
+    'linear-gradient(135deg,#6e44b8,#3b1e6e)',
+    'linear-gradient(135deg,#c04030,#6b1e0e)',
+    'linear-gradient(135deg,#b06010,#5a3000)',
+    'linear-gradient(135deg,#0890a8,#004a58)',
   ];
   return colors[id % colors.length];
 }
@@ -197,10 +208,14 @@ export function navbarHtml() {
   const displayName = user.username || user.email || '';
   return `
     <nav class="navbar">
-      <span class="navbar-brand">Orbit</span>
+      <span class="navbar-brand">
+        <img src="/icon-dark-512.png" alt="" class="navbar-logo-light" />
+        <img src="/icon-light-512.png" alt="" class="navbar-logo-dark" />
+        Orbit
+      </span>
+      <div class="navbar-sep"></div>
       <span class="navbar-spacer"></span>
-      ${displayName ? `<span class="navbar-username">${displayName}</span>` : ''}
-      <span class="navbar-spacer"></span>
+      ${displayName ? `<span class="navbar-username">${escHtml(displayName)}</span>` : ''}
       <button class="nav-link" id="nav-profile">Profile</button>
       <button class="nav-link" id="nav-logout">Sign out</button>
     </nav>

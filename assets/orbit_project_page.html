@@ -1,0 +1,361 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;700&family=DM+Sans:wght@300;400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+
+.app[data-theme="dark"]{
+  --bg:#0b0d14;--bg2:#0f1118;--bg3:#161825;--bg4:#1c2030;
+  --border:#2a2e42;--border2:#353a52;
+  --text:#e8eaf2;--text2:#8a90aa;--text3:#5a6280;
+  --accent:#63a0ff;--accent2:#1a2a4a;
+  --tag-bg:#1c2338;--tag-text:#63a0ff;
+  --pri-high-bg:#2a1a1a;--pri-high:#e06060;
+  --pri-med-bg:#2a2010;--pri-med:#e0a040;
+  --pri-low-bg:#102218;--pri-low:#40b870;
+  --risk-open-bg:#2a1a10;--risk-open:#e08040;
+  --risk-res-bg:#102218;--risk-res:#40b870;
+  --btn-bg:#1c2030;--btn-hover:#252a40;
+}
+.app[data-theme="light"]{
+  --bg:#f4f5f9;--bg2:#ffffff;--bg3:#f0f1f6;--bg4:#e8eaf2;
+  --border:#dde0ec;--border2:#c8ccdc;
+  --text:#1a1e30;--text2:#5a6280;--text3:#8a90aa;
+  --accent:#185FA5;--accent2:#e6f1fb;
+  --tag-bg:#e6f1fb;--tag-text:#185FA5;
+  --pri-high-bg:#fcebeb;--pri-high:#A32D2D;
+  --pri-med-bg:#faeeda;--pri-med:#854F0B;
+  --pri-low-bg:#eaf3de;--pri-low:#3B6D11;
+  --risk-open-bg:#faeeda;--risk-open:#854F0B;
+  --risk-res-bg:#eaf3de;--risk-res:#3B6D11;
+  --btn-bg:#f0f1f6;--btn-hover:#e4e6f0;
+}
+
+.app{font-family:'DM Sans',sans-serif;background:var(--bg);min-height:700px;color:var(--text);}
+
+.topbar{
+  background:var(--bg2);border-bottom:0.5px solid var(--border);
+  display:flex;align-items:center;gap:12px;padding:0 20px;height:52px;
+}
+.logo-mark{width:28px;height:28px;border-radius:50%;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;}
+.logo-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);}
+.logo-txt{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);letter-spacing:0.04em;}
+.topbar-sep{width:0.5px;height:20px;background:var(--border);margin:0 4px;}
+.project-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:500;color:var(--text2);}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.search-box{
+  background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;
+  padding:6px 12px;font-size:13px;color:var(--text2);
+  display:flex;align-items:center;gap:6px;cursor:pointer;
+}
+.search-icon{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--text3);position:relative;flex-shrink:0;}
+.search-icon::after{content:'';position:absolute;width:5px;height:1.5px;background:var(--text3);bottom:-4px;right:-3px;transform:rotate(45deg);}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--accent2);border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:var(--accent);}
+.theme-btn{background:var(--btn-bg);border:0.5px solid var(--border);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;}
+.theme-btn:hover{background:var(--btn-hover);}
+
+.subbar{
+  background:var(--bg2);border-bottom:0.5px solid var(--border);
+  display:flex;align-items:center;gap:8px;padding:10px 20px;
+}
+.subbar-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:var(--text);flex:1;}
+.tag-pill{
+  background:var(--tag-bg);color:var(--tag-text);
+  font-size:11px;padding:3px 8px;border-radius:20px;
+}
+.add-bucket-btn{
+  background:var(--accent);color:#fff;border:none;border-radius:8px;
+  padding:7px 14px;font-size:13px;font-family:'DM Sans',sans-serif;
+  font-weight:500;cursor:pointer;display:flex;align-items:center;gap:5px;
+}
+.add-bucket-btn:hover{opacity:0.9;}
+.plus-icon{font-size:16px;line-height:1;}
+
+.board{display:flex;gap:14px;padding:16px 20px;overflow-x:auto;align-items:flex-start;}
+
+.bucket{
+  background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;
+  width:260px;flex-shrink:0;
+}
+.bucket-head{
+  padding:12px 14px 10px;border-bottom:0.5px solid var(--border);
+  display:flex;align-items:flex-start;gap:10px;
+}
+.bucket-thumb{
+  width:36px;height:36px;border-radius:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+}
+.bucket-info{flex:1;}
+.bucket-name{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);}
+.bucket-desc{font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4;}
+.bucket-count{font-size:11px;color:var(--text3);background:var(--bg4);border-radius:10px;padding:2px 7px;flex-shrink:0;}
+
+.bucket-body{padding:10px;}
+
+.card{
+  background:var(--bg2);border:0.5px solid var(--border);border-radius:10px;
+  padding:11px 12px;margin-bottom:8px;cursor:pointer;
+}
+.card:hover{border-color:var(--border2);}
+.card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.card-label{font-size:12px;font-weight:500;color:var(--text);}
+.pri-badge{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:500;}
+.pri-high{background:var(--pri-high-bg);color:var(--pri-high);}
+.pri-med{background:var(--pri-med-bg);color:var(--pri-med);}
+.pri-low{background:var(--pri-low-bg);color:var(--pri-low);}
+
+.card-desc{font-size:11px;color:var(--text2);line-height:1.45;margin-bottom:8px;}
+.card-meta{display:flex;align-items:center;justify-content:space-between;}
+.due-date{font-size:10px;color:var(--text3);}
+.card-tags{display:flex;gap:4px;}
+.card-tag{font-size:10px;background:var(--tag-bg);color:var(--tag-text);padding:2px 6px;border-radius:8px;}
+
+.risk-card{
+  background:var(--bg2);border:0.5px solid var(--border);border-radius:10px;
+  padding:11px 12px;margin-bottom:8px;
+}
+.risk-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;}
+.risk-label{font-size:12px;font-weight:500;color:var(--text);}
+.risk-status{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:500;}
+.risk-open{background:var(--risk-open-bg);color:var(--risk-open);}
+.risk-res{background:var(--risk-res-bg);color:var(--risk-res);}
+.risk-desc{font-size:11px;color:var(--text2);line-height:1.45;margin-bottom:8px;}
+.rpn-row{display:flex;gap:6px;align-items:center;}
+.rpn-badge{font-size:10px;background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;padding:2px 6px;color:var(--text2);}
+.rpn-val{font-size:11px;font-weight:500;color:var(--pri-high);background:var(--pri-high-bg);border-radius:6px;padding:2px 7px;}
+
+.add-card-btn{
+  width:100%;background:transparent;border:0.5px dashed var(--border2);
+  border-radius:8px;padding:8px;font-size:12px;color:var(--text3);
+  cursor:pointer;font-family:'DM Sans',sans-serif;
+}
+.add-card-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent2);}
+
+.section-label{font-size:10px;font-weight:500;color:var(--text3);letter-spacing:0.06em;text-transform:uppercase;margin:10px 0 6px;}
+</style>
+
+<div class="app" data-theme="dark" id="app">
+
+<div class="topbar">
+  <div class="logo-mark"><div class="logo-dot"></div></div>
+  <span class="logo-txt">Orbit</span>
+  <div class="topbar-sep"></div>
+  <span class="project-title">Projects / Website Redesign</span>
+  <div class="topbar-right">
+    <div class="search-box">
+      <div class="search-icon"></div>
+      <span>Search tasks & tags…</span>
+    </div>
+    <button class="theme-btn" onclick="toggleTheme()">Toggle theme</button>
+    <div class="avatar">SD</div>
+  </div>
+</div>
+
+<div class="subbar">
+  <div>
+    <div class="subbar-title">Website Redesign</div>
+    <div style="display:flex;gap:6px;margin-top:4px;">
+      <span class="tag-pill">#design</span>
+      <span class="tag-pill">#frontend</span>
+      <span class="tag-pill">#q2</span>
+    </div>
+  </div>
+  <button class="add-bucket-btn"><span class="plus-icon">+</span> Add bucket</button>
+</div>
+
+<div class="board">
+
+  <div class="bucket">
+    <div class="bucket-head">
+      <div class="bucket-thumb" style="background:#1a2a4a;font-size:18px;">📋</div>
+      <div class="bucket-info">
+        <div class="bucket-name">Backlog</div>
+        <div class="bucket-desc">Items not yet started</div>
+      </div>
+      <div class="bucket-count">3</div>
+    </div>
+    <div class="bucket-body">
+      <div class="section-label">Tasks</div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-label">Homepage hero section</span>
+          <span class="pri-badge pri-high">High</span>
+        </div>
+        <div class="card-desc">Redesign the main hero with new brand colors and CTA layout.</div>
+        <div class="card-meta">
+          <span class="due-date">Due Apr 10</span>
+          <div class="card-tags"><span class="card-tag">#design</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-label">Mobile nav menu</span>
+          <span class="pri-badge pri-med">Medium</span>
+        </div>
+        <div class="card-desc">Implement hamburger menu for screens under 768px.</div>
+        <div class="card-meta">
+          <span class="due-date">Due Apr 14</span>
+          <div class="card-tags"><span class="card-tag">#frontend</span></div>
+        </div>
+      </div>
+
+      <div class="section-label">Risks</div>
+
+      <div class="risk-card">
+        <div class="risk-top">
+          <span class="risk-label">Scope creep</span>
+          <span class="risk-status risk-open">Open</span>
+        </div>
+        <div class="risk-desc">Client may keep adding features mid-sprint without formal change requests.</div>
+        <div class="rpn-row">
+          <span class="rpn-badge">S:7</span>
+          <span class="rpn-badge">P:6</span>
+          <span class="rpn-badge">D:4</span>
+          <span class="rpn-val">RPN 168</span>
+        </div>
+      </div>
+
+      <button class="add-card-btn">+ Add task or risk</button>
+    </div>
+  </div>
+
+  <div class="bucket">
+    <div class="bucket-head">
+      <div class="bucket-thumb" style="background:#102218;font-size:18px;">⚙️</div>
+      <div class="bucket-info">
+        <div class="bucket-name">In Progress</div>
+        <div class="bucket-desc">Currently being worked on</div>
+      </div>
+      <div class="bucket-count">2</div>
+    </div>
+    <div class="bucket-body">
+      <div class="section-label">Tasks</div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-label">Design system tokens</span>
+          <span class="pri-badge pri-high">High</span>
+        </div>
+        <div class="card-desc">Define and document all colors, spacing, and typography variables.</div>
+        <div class="card-meta">
+          <span class="due-date">Due Mar 28</span>
+          <div class="card-tags"><span class="card-tag">#design</span><span class="card-tag">#tokens</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-label">API integration</span>
+          <span class="pri-badge pri-med">Medium</span>
+        </div>
+        <div class="card-desc">Connect the contact form to the backend email service endpoint.</div>
+        <div class="card-meta">
+          <span class="due-date">Due Apr 2</span>
+          <div class="card-tags"><span class="card-tag">#frontend</span></div>
+        </div>
+      </div>
+
+      <div class="section-label">Risks</div>
+
+      <div class="risk-card">
+        <div class="risk-top">
+          <span class="risk-label">Browser compatibility</span>
+          <span class="risk-status risk-open">Open</span>
+        </div>
+        <div class="risk-desc">CSS grid gaps render differently on Safari 14 and older Edge builds.</div>
+        <div class="rpn-row">
+          <span class="rpn-badge">S:5</span>
+          <span class="rpn-badge">P:4</span>
+          <span class="rpn-badge">D:3</span>
+          <span class="rpn-val">RPN 60</span>
+        </div>
+      </div>
+
+      <button class="add-card-btn">+ Add task or risk</button>
+    </div>
+  </div>
+
+  <div class="bucket">
+    <div class="bucket-head">
+      <div class="bucket-thumb" style="background:#1a1a2a;font-size:18px;">🔍</div>
+      <div class="bucket-info">
+        <div class="bucket-name">Review</div>
+        <div class="bucket-desc">Awaiting approval or feedback</div>
+      </div>
+      <div class="bucket-count">2</div>
+    </div>
+    <div class="bucket-body">
+      <div class="section-label">Tasks</div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-label">Wireframes v2</span>
+          <span class="pri-badge pri-low">Low</span>
+        </div>
+        <div class="card-desc">Revised wireframes for inner pages sent to stakeholder for sign-off.</div>
+        <div class="card-meta">
+          <span class="due-date">Due Mar 25</span>
+          <div class="card-tags"><span class="card-tag">#design</span></div>
+        </div>
+      </div>
+
+      <div class="section-label">Risks</div>
+
+      <div class="risk-card">
+        <div class="risk-top">
+          <span class="risk-label">Delayed feedback loop</span>
+          <span class="risk-status risk-res">Resolved</span>
+        </div>
+        <div class="risk-desc">Stakeholder review turnaround was slow — escalated and resolved with weekly sync.</div>
+        <div class="rpn-row">
+          <span class="rpn-badge">S:6</span>
+          <span class="rpn-badge">P:7</span>
+          <span class="rpn-badge">D:5</span>
+          <span class="rpn-val" style="color:var(--risk-res);background:var(--risk-res-bg);">RPN 210</span>
+        </div>
+      </div>
+
+      <button class="add-card-btn">+ Add task or risk</button>
+    </div>
+  </div>
+
+  <div class="bucket">
+    <div class="bucket-head">
+      <div class="bucket-thumb" style="background:#102218;font-size:18px;">✅</div>
+      <div class="bucket-info">
+        <div class="bucket-name">Done</div>
+        <div class="bucket-desc">Completed and shipped</div>
+      </div>
+      <div class="bucket-count">1</div>
+    </div>
+    <div class="bucket-body">
+      <div class="section-label">Tasks</div>
+
+      <div class="card" style="opacity:0.65;">
+        <div class="card-top">
+          <span class="card-label">Brand audit</span>
+          <span class="pri-badge pri-low">Low</span>
+        </div>
+        <div class="card-desc">Full audit of existing brand assets and color usage across all pages.</div>
+        <div class="card-meta">
+          <span class="due-date">Done Mar 18</span>
+          <div class="card-tags"><span class="card-tag">#design</span></div>
+        </div>
+      </div>
+
+      <button class="add-card-btn">+ Add task or risk</button>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+function toggleTheme(){
+  const app = document.getElementById('app');
+  const current = app.getAttribute('data-theme');
+  app.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+  document.querySelector('.theme-btn').textContent = current === 'dark' ? 'Toggle theme' : 'Toggle theme';
+}
+</script>

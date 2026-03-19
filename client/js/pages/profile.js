@@ -117,13 +117,9 @@ export async function renderProfile(app) {
   document.getElementById('profile-back-btn').onclick = () => navigate('/projects');
 
   document.getElementById('dark-mode-toggle').addEventListener('change', (e) => {
-    if (e.target.checked) {
-      document.body.classList.add('dark');
-      localStorage.setItem('orbit_theme', 'dark');
-    } else {
-      document.body.classList.remove('dark');
-      localStorage.setItem('orbit_theme', 'light');
-    }
+    const theme = e.target.checked ? 'dark' : 'light';
+    document.body.setAttribute('data-theme', theme);
+    localStorage.setItem('orbit_theme', theme);
   });
 
   // Avatar upload
