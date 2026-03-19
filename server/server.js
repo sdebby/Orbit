@@ -18,6 +18,7 @@ app.use(helmet({
       imgSrc: ["'self'", 'data:', 'blob:'],
       scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
+      fontSrc: ["'self'"],
     },
   },
 }));
@@ -44,8 +45,19 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// Static files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Static files — uploads require authentication via HttpOnly cookie
+const jwt = require('jsonwebtoken');
+app.use('/uploads', (req, res, next) => {
+  const cookie = (req.headers.cookie || '').split(';').map(c => c.trim()).find(c => c.startsWith('orbit_token='));
+  const token = cookie ? cookie.split('=')[1] : null;
+  if (!token) return res.status(401).json({ error: 'Authentication required' });
+  try {
+    jwt.verify(token, process.env.JWT_SECRET || 'orbit-dev-secret-change-in-production');
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}, express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, '..', 'client')));
 
 // Rate limiters for auth endpoints
@@ -65,7 +77,16 @@ const forgotPasswordLimiter = rateLimit({
   message: { error: 'Too many password reset requests, please try again later' },
 });
 
+const verifyEmailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many verification attempts, please try again later' },
+});
+
 // API Routes
+app.use('/api/auth/verify-email', verifyEmailLimiter);
 app.use('/api/auth/forgot-password', forgotPasswordLimiter);
 app.use('/api/auth', authLimiter, require('./routes/auth'));
 app.use('/api/projects', require('./routes/projects'));

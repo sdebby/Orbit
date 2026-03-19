@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../models/db');
 const { requireAuth } = require('../middleware/auth');
-const { hashPassword, verifyPassword } = require('../utils/hash');
+const { hashPassword, verifyPassword, decryptEmail } = require('../utils/hash');
 
 function validatePassword(password) {
   if (!password || password.length < 8) return 'Password must be at least 8 characters';
@@ -56,7 +56,7 @@ router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) 
     .run(picture, passwordHash, updatedUsername, user.id);
 
   const updated = db.prepare('SELECT id, email, username, profile_picture, created_at FROM users WHERE id = ?').get(user.id);
-  res.json({ userId: updated.id, email: updated.email, username: updated.username, profilePicture: updated.profile_picture, createdAt: updated.created_at });
+  res.json({ userId: updated.id, email: decryptEmail(updated.email), username: updated.username, profilePicture: updated.profile_picture, createdAt: updated.created_at });
 });
 
 // DELETE /api/profile  — permanently delete account and all data

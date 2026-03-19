@@ -91,6 +91,18 @@ try { _db.exec('ALTER TABLE users ADD COLUMN verify_token_expires INTEGER'); } c
 // Mark existing accounts (created before verification was introduced) as already verified
 try { _db.exec("UPDATE users SET email_verified = 1 WHERE email_verified IS NULL OR (verify_token IS NULL AND email_verified = 0)"); } catch {}
 
+// Encrypt existing plaintext emails at rest
+try {
+  const { encryptEmail } = require('../utils/hash');
+  const allUsers = _db.prepare('SELECT id, email FROM users').all();
+  const updateStmt = _db.prepare('UPDATE users SET email = ? WHERE id = ?');
+  for (const row of allUsers) {
+    if (row.email && row.email.includes('@')) {
+      updateStmt.run([encryptEmail(row.email), row.id]);
+    }
+  }
+} catch (e) { console.error('Email encryption migration:', e.message); }
+
 // Migrate risks from bucket-level to project-level
 try {
   _db.exec('SELECT bucket_id FROM risks LIMIT 0'); // throws if already migrated

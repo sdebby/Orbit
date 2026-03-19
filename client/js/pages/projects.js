@@ -232,6 +232,7 @@ export function setupNavbar() {
   document.getElementById('nav-logout')?.addEventListener('click', () => {
     localStorage.removeItem('orbit_token');
     localStorage.removeItem('orbit_user');
+    document.cookie = 'orbit_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Strict';
     navigate('/login');
   });
 }
