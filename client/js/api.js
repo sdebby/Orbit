@@ -35,6 +35,7 @@ export const api = {
   me: () => request('GET', '/auth/me'),
   forgotPassword: (email) => request('POST', '/auth/forgot-password', { email }),
   resetPassword: (token, password) => request('POST', `/auth/reset-password/${token}`, { password }),
+  verifyEmail: (token) => request('GET', `/auth/verify-email/${token}`),
 
   // Profile
   updateProfile: (formData) => request('PUT', '/profile', null, formData),

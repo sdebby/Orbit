@@ -9,7 +9,7 @@ export async function renderProfile(app) {
 
   app.innerHTML = `
     <div class="app-layout">
-      ${navbarHtml()}
+      ${navbarHtml({ hideProfile: true })}
       <div class="page-content" style="overflow-y:auto">
         <div class="profile-page">
 

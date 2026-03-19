@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const db = require('../models/db');
 const { sha512, hashPassword, verifyPassword } = require('../utils/hash');
 const { signToken } = require('../middleware/auth');
-const { sendPasswordResetEmail } = require('../utils/email');
+const { sendPasswordResetEmail, sendVerificationEmail } = require('../utils/email');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -27,14 +27,18 @@ router.post('/register', async (req, res) => {
   const emailNorm = email.toLowerCase().trim();
   const emailHash = sha512(emailNorm);
   const passwordHash = await hashPassword(password);
+  const verifyToken = crypto.randomBytes(32).toString('hex');
+  const verifyExpires = Date.now() + 1800000; // 30 minutes
 
   try {
-    const stmt = db.prepare(
-      'INSERT INTO users (email, email_hash, password_hash) VALUES (?, ?, ?)'
-    );
-    const result = stmt.run(emailNorm, emailHash, passwordHash);
-    const token = signToken(result.lastInsertRowid);
-    res.status(201).json({ token, userId: result.lastInsertRowid, email: emailNorm, username: null });
+    const result = db.prepare(
+      'INSERT INTO users (email, email_hash, password_hash, email_verified, verify_token, verify_token_expires) VALUES (?, ?, ?, 0, ?, ?)'
+    ).run(emailNorm, emailHash, passwordHash, verifyToken, verifyExpires);
+
+    const verifyLink = `${process.env.APP_URL || 'http://localhost:3000'}/#/verify-email/${verifyToken}`;
+    sendVerificationEmail(emailNorm, verifyLink).catch(console.error);
+
+    res.status(201).json({ message: 'Account created. Please check your email to verify your account before signing in.' });
   } catch (err) {
     if (err.message.includes('UNIQUE')) return res.status(409).json({ error: 'Email already registered' });
     throw err;
@@ -55,8 +59,24 @@ router.post('/login', async (req, res) => {
   const valid = await verifyPassword(password, user.password_hash);
   if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
+  if (!user.email_verified) {
+    return res.status(403).json({ error: 'EMAIL_NOT_VERIFIED' });
+  }
+
   const token = signToken(user.id);
   res.json({ token, userId: user.id, email: user.email, username: user.username, profilePicture: user.profile_picture });
+});
+
+// GET /api/auth/verify-email/:token
+router.get('/verify-email/:token', (req, res) => {
+  const { token } = req.params;
+  const user = db.prepare('SELECT * FROM users WHERE verify_token = ?').get(token);
+
+  if (!user) return res.status(400).json({ error: 'Invalid or already used verification link' });
+  if (user.verify_token_expires < Date.now()) return res.status(400).json({ error: 'Verification link has expired. Please register again.' });
+
+  db.prepare('UPDATE users SET email_verified = 1, verify_token = NULL, verify_token_expires = NULL WHERE id = ?').run(user.id);
+  res.json({ message: 'Email verified successfully. You can now sign in.' });
 });
 
 // POST /api/auth/forgot-password

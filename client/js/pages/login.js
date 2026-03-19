@@ -74,7 +74,9 @@ export function renderLogin(app) {
       localStorage.setItem('orbit_user', JSON.stringify({ userId: data.userId, email: data.email, username: data.username, profilePicture: data.profilePicture }));
       navigate('/projects');
     } catch (err) {
-      errEl.textContent = err.message;
+      errEl.textContent = err.message === 'EMAIL_NOT_VERIFIED'
+        ? 'Please verify your email address before signing in. Check your inbox for the verification link.'
+        : err.message;
       errEl.style.display = 'block';
       btn.disabled = false;
       btn.textContent = 'Sign in to Orbit';
