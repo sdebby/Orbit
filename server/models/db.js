@@ -103,6 +103,8 @@ try {
   }
 } catch (e) { console.error('Email encryption migration:', e.message); }
 
+try { _db.exec('ALTER TABLE projects ADD COLUMN favorite INTEGER DEFAULT 0'); } catch {}
+
 // Migrate risks from bucket-level to project-level
 try {
   _db.exec('SELECT bucket_id FROM risks LIMIT 0'); // throws if already migrated

@@ -52,6 +52,7 @@ export const api = {
   createProject: (formData) => request('POST', '/projects', null, formData),
   getProject: (id) => request('GET', `/projects/${id}`),
   updateProject: (id, formData) => request('PUT', `/projects/${id}`, null, formData),
+  toggleFavorite: (id) => request('PUT', `/projects/${id}/favorite`),
   deleteProject: (id) => request('DELETE', `/projects/${id}`),
 
   // Buckets

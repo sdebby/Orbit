@@ -34,7 +34,7 @@ router.get('/', requireAuth, (req, res) => {
     params.push(`%${q}%`, `%${q}%`);
   }
 
-  let projects = db.prepare(query + ' ORDER BY created_at DESC').all(...params);
+  let projects = db.prepare(query + ' ORDER BY favorite DESC, title COLLATE NOCASE ASC').all(...params);
 
   if (tags) {
     const tagList = tags.split(',').map(t => t.trim().toLowerCase());
@@ -90,6 +90,17 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
 
   const updated = db.prepare('SELECT * FROM projects WHERE id = ?').get(project.id);
   res.json({ ...updated, tags: JSON.parse(updated.tags) });
+});
+
+// PUT /api/projects/:id/favorite
+router.put('/:id/favorite', requireAuth, (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?')
+    .get(req.params.id, req.user.userId);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  const newVal = project.favorite ? 0 : 1;
+  db.prepare('UPDATE projects SET favorite = ? WHERE id = ?').run(newVal, project.id);
+  res.json({ favorite: newVal });
 });
 
 // DELETE /api/projects/:id

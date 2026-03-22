@@ -60,10 +60,13 @@ function renderGrid(grid, projects) {
     return;
   }
 
+  grid.classList.toggle('single-row', projects.length <= 4);
+
   grid.innerHTML = projects.map(p => `
     <div class="project-card" data-id="${p.id}">
       <div class="project-card-cover" style="background:${p.picture ? 'transparent' : projectColor(p.id)}">
         ${p.picture ? `<img src="${escHtml(p.picture)}" alt="" />` : ''}
+        <button class="favorite-star ${p.favorite ? 'active' : ''}" data-id="${p.id}" title="Favorite">&#9733;</button>
       </div>
       <div class="project-card-body">
         <div class="project-card-title">${escHtml(p.title)}</div>
@@ -101,6 +104,18 @@ function renderGrid(grid, projects) {
         await api.deleteProject(btn.dataset.id);
         toast('Project deleted', 'success');
         loadProjects();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    });
+  });
+
+  grid.querySelectorAll('.favorite-star').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        await api.toggleFavorite(btn.dataset.id);
+        loadProjects(document.getElementById('project-search')?.value || '');
       } catch (err) {
         toast(err.message, 'error');
       }
