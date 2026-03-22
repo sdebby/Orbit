@@ -762,6 +762,12 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .bucket-col[draggable="true"] { user-select: none; }
 .bucket-col.dragging { opacity: 0.35; }
 .bucket-col.drag-over { outline: 2px dashed var(--blue-light); outline-offset: -2px; }
+
+/* Task drag-and-drop between buckets */
+.task-card[draggable="true"] { cursor: grab; }
+.task-card.task-dragging { opacity: 0.3; }
+.bucket-items.task-drop-target { background: rgba(0,82,204,0.08); border-radius: var(--radius); min-height: 40px; }
+.task-card.task-drop-above { box-shadow: 0 -3px 0 0 var(--blue); }
 .bucket-title {
   font-size: 14px; font-weight: 600;
   color: var(--gray-800);

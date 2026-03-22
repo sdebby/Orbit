@@ -6,13 +6,13 @@ A personal project management web app inspired by Trello and Microsoft Planner. 
 
 ## Features
 
-- **Projects** — create and manage projects with cover images and tags; edit from the projects page
+- **Projects** — create and manage projects with cover images, tags, and favorites; favorite projects are pinned to the top
 - **Kanban boards** — unlimited buckets per project with custom header colors, inline storyboard notes, and drag-and-drop column reordering
-- **Tasks** — priority levels (Low / Medium / High), due dates, picture attachments, tags, and completion tracking; done tasks collapse into a "✓ N Done" section per column
+- **Tasks** — priority levels (Low / Medium / High), due dates, picture attachments, tags, and completion tracking; drag-and-drop tasks between buckets; done tasks collapse into a "✓ N Done" section per column
 - **Risk management** — severity / probability / detectability scoring with automatic RPN calculation (S × P × D), solution tracking, and status (Open / Resolved); risks shown in a dedicated column on the board
 - **Authentication** — JWT-based login, registration with email verification (link expires in 30 minutes), forgot/reset password via email (SMTP)
 - **Profile** — display name, avatar upload, password change, dark / light mode toggle, delete account
-- **Security** — Argon2id password hashing, Helmet security headers, CORS origin restriction, CSRF origin check, rate limiting, UUID-randomised upload filenames, XSS escaping, timing-attack mitigation on forgot-password
+- **Security** — Argon2id password hashing, AES-256-GCM email encryption at rest, Helmet security headers, CORS origin restriction, CSRF origin check, rate limiting, cookie-authenticated file uploads, self-hosted fonts, UUID-randomised upload filenames, XSS escaping, timing-attack mitigation on forgot-password
 
 ---
 
@@ -46,6 +46,7 @@ Orbit/
 │   ├── icon-dark-512.png
 │   ├── css/
 │   │   └── style.css
+│   ├── fonts/              # Self-hosted web fonts (DM Sans, Syne)
 │   └── js/
 │       ├── app.js           # Bootstrap, auth guard, route registration
 │       ├── api.js           # Fetch wrappers for all API calls
@@ -74,7 +75,7 @@ Orbit/
     ├── middleware/
     │   └── auth.js          # requireAuth + signToken (JWT)
     ├── utils/
-    │   ├── hash.js          # hashPassword (Argon2id), verifyPassword, sha512
+    │   ├── hash.js          # hashPassword (Argon2id), verifyPassword, sha512, email encryption
     │   └── email.js         # sendPasswordResetEmail, sendVerificationEmail
     ├── uploads/             # Uploaded images (auto-created, gitignored)
     └── data/                # SQLite database file (auto-created, gitignored)
@@ -187,15 +188,16 @@ Existing accounts created before this feature was introduced are automatically m
 | Area | Implementation |
 |------|---------------|
 | Passwords | Argon2id with random salt (via `hash-wasm`) |
-| Email lookup | SHA-512 hash stored separately — plaintext email never used for lookup |
+| Email storage | AES-256-GCM encryption at rest; SHA-512 hash for constant-time lookup |
 | Tokens | JWT signed with `JWT_SECRET` from environment, 7-day expiry |
-| Email verification | Random 32-byte hex token, expires in 30 minutes |
+| Email verification | Random 32-byte hex token, expires in 30 minutes; rate-limited (10 req / 15 min) |
 | Password reset | Random 32-byte hex token, expires in 1 hour |
 | Auth rate limiting | 20 req / 15 min on register/login; 5 req / hour on forgot-password |
 | CSRF | `Origin` / `Referer` header checked on all mutating requests |
 | Security headers | Helmet with CSP (`self` + `unsafe-inline` for styles) |
 | CORS | Restricted to `APP_URL` env var only |
-| File uploads | MIME type + extension whitelist (jpg, jpeg, png); UUID filenames |
+| File uploads | MIME type + extension whitelist (jpg, jpeg, png); UUID filenames; authenticated via HttpOnly cookie |
+| Fonts | Self-hosted (no external requests to Google Fonts) |
 | Body size | 10 KB limit on JSON / form payloads |
 | Password policy | Min 8 characters, uppercase, number, and special character required |
 | Timing attacks | Forgot-password always responds after a minimum 300 ms delay |
@@ -209,12 +211,12 @@ Existing accounts created before this feature was introduced are automatically m
 |----------|-----------|
 | Auth | `POST /api/auth/register` · `POST /api/auth/login` · `GET /api/auth/me` · `GET /api/auth/verify-email/:token` · `POST /api/auth/forgot-password` · `POST /api/auth/reset-password/:token` |
 | Profile | `PUT /api/profile` · `DELETE /api/profile` |
-| Projects | `GET /POST /api/projects` · `GET /PUT /DELETE /api/projects/:id` |
+| Projects | `GET /POST /api/projects` · `GET /PUT /DELETE /api/projects/:id` · `PUT /api/projects/:id/favorite` |
 | Buckets | `GET /POST /api/projects/:id/buckets` · `PUT /DELETE /api/buckets/:id` |
 | Tasks | `GET /POST /api/buckets/:id/tasks` · `GET /PUT /DELETE /api/tasks/:id` |
 | Risks | `GET /POST /api/projects/:id/risks` · `GET /PUT /DELETE /api/risks/:id` |
 
-All authenticated endpoints require `Authorization: Bearer <token>` header.
+All authenticated endpoints require `Authorization: Bearer <token>` header. File uploads are authenticated via HttpOnly `orbit_token` cookie.
 
 ---
 

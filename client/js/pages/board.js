@@ -103,6 +103,7 @@ export async function renderBoard(app, params) {
     scroll.appendChild(addWrap);
 
     makeBoardSortable(scroll);
+    makeTasksDraggable(scroll);
   }
 
   function makeBoardSortable(scroll) {
@@ -112,9 +113,10 @@ export async function renderBoard(app, params) {
       col.setAttribute('draggable', 'true');
 
       col.addEventListener('dragstart', (e) => {
-        // Don't start drag when interacting with buttons, inputs, textareas
+        // Don't start column drag when interacting with buttons, inputs, textareas, or task cards
         if (e.composedPath().some(el => el.tagName &&
-            ['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'A'].includes(el.tagName))) {
+            ['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'A'].includes(el.tagName)) ||
+            e.composedPath().some(el => el.classList?.contains('task-card'))) {
           e.preventDefault();
           return;
         }
@@ -140,6 +142,94 @@ export async function renderBoard(app, params) {
           col.before(dragSrc);
         } else {
           col.after(dragSrc);
+        }
+      });
+    });
+  }
+
+  function makeTasksDraggable(scroll) {
+    let dragCard = null;
+    let dragBucketId = null;
+
+    scroll.querySelectorAll('.bucket-col:not(.risk-col)').forEach(col => {
+      const bucketId = col.dataset.id;
+      const itemsContainer = col.querySelector('.bucket-items');
+      if (!itemsContainer) return;
+
+      // Make each task card draggable
+      itemsContainer.querySelectorAll('.task-card:not(.task-done)').forEach(card => {
+        card.setAttribute('draggable', 'true');
+
+        card.addEventListener('dragstart', (e) => {
+          e.stopPropagation(); // prevent column drag
+          dragCard = card;
+          dragBucketId = bucketId;
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', card.dataset.id);
+          requestAnimationFrame(() => card.classList.add('task-dragging'));
+        });
+
+        card.addEventListener('dragend', () => {
+          card.classList.remove('task-dragging');
+          scroll.querySelectorAll('.bucket-items').forEach(c => c.classList.remove('task-drop-target'));
+          scroll.querySelectorAll('.task-card').forEach(c => c.classList.remove('task-drop-above'));
+          dragCard = null;
+          dragBucketId = null;
+        });
+      });
+
+      // Make bucket items container a drop zone
+      itemsContainer.addEventListener('dragover', (e) => {
+        if (!dragCard) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        itemsContainer.classList.add('task-drop-target');
+
+        // Find the card we're hovering over for insertion position
+        const cards = [...itemsContainer.querySelectorAll('.task-card:not(.task-dragging)')];
+        cards.forEach(c => c.classList.remove('task-drop-above'));
+        const afterCard = cards.find(c => {
+          const rect = c.getBoundingClientRect();
+          return e.clientY < rect.top + rect.height / 2;
+        });
+        if (afterCard) afterCard.classList.add('task-drop-above');
+      });
+
+      itemsContainer.addEventListener('dragleave', (e) => {
+        if (!itemsContainer.contains(e.relatedTarget)) {
+          itemsContainer.classList.remove('task-drop-target');
+          itemsContainer.querySelectorAll('.task-card').forEach(c => c.classList.remove('task-drop-above'));
+        }
+      });
+
+      itemsContainer.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        itemsContainer.classList.remove('task-drop-target');
+        itemsContainer.querySelectorAll('.task-card').forEach(c => c.classList.remove('task-drop-above'));
+        if (!dragCard) return;
+
+        const taskId = dragCard.dataset.id;
+        const targetBucketId = bucketId;
+
+        // Visual: move the card in DOM immediately
+        const cards = [...itemsContainer.querySelectorAll('.task-card:not(.task-dragging)')];
+        const afterCard = cards.find(c => {
+          const rect = c.getBoundingClientRect();
+          return e.clientY < rect.top + rect.height / 2;
+        });
+        if (afterCard) {
+          itemsContainer.insertBefore(dragCard, afterCard);
+        } else {
+          itemsContainer.appendChild(dragCard);
+        }
+
+        // Persist: update bucket_id on server
+        try {
+          await api.updateTask(taskId, { bucket_id: targetBucketId });
+          await loadAll();
+        } catch (err) {
+          toast('Failed to move task', 'error');
+          await loadAll();
         }
       });
     });
@@ -347,7 +437,6 @@ export async function renderBoard(app, params) {
           ${!t.completed_at ? `<button class="card-action-btn card-edit-btn" title="Edit">&#9998;</button>` : ''}
           <button class="card-action-btn card-delete-btn" title="Delete">&#128465;</button>
         </div>
-        <div class="card-type-badge task">Task</div>
         ${t.picture ? `<img src="${escHtml(t.picture)}" style="width:100%;height:80px;object-fit:cover;border-radius:4px;margin-bottom:6px" />` : ''}
         <div class="task-body">
           <button class="task-check-btn ${t.completed_at ? 'checked' : ''}" title="${t.completed_at ? 'Mark as incomplete' : 'Mark as done'}">
