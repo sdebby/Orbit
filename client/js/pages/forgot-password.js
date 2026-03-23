@@ -77,8 +77,47 @@ export function renderForgotPassword(app) {
   });
 }
 
-export function renderResetPassword(app, params) {
+export async function renderResetPassword(app, params) {
   const token = params.token;
+
+  // Show loading state while validating token
+  app.innerHTML = `
+    <div class="login-wrap">
+      <div class="login-inner">
+        ${leftPanel()}
+        <div class="login-right">
+          <div class="login-form-card">
+            <div class="spinner-wrap" style="height:120px"><div class="spinner"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Validate token before showing the form
+  try {
+    await api.validateResetToken(token);
+  } catch (err) {
+    app.innerHTML = `
+      <div class="login-wrap">
+        <div class="login-inner">
+          ${leftPanel()}
+          <div class="login-right">
+            <div class="login-form-card">
+              <h2 class="login-form-title">Link unavailable</h2>
+              <p class="login-form-sub" style="color:var(--red)">${err.message}</p>
+              <a href="#/forgot-password" class="login-btn" style="display:block;text-align:center;text-decoration:none;margin-top:16px">Request a new link</a>
+              <div class="login-register-row" style="margin-top:16px;">
+                <a href="#/login">Back to sign in</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
   app.innerHTML = `
     <div class="login-wrap">
       <div class="login-inner">
@@ -90,7 +129,7 @@ export function renderResetPassword(app, params) {
             <form id="reset-form">
               <div class="login-field-group">
                 <label class="login-field-label">New Password</label>
-                <input type="password" class="login-field-input" id="password" placeholder="••••••••••" required minlength="6" />
+                <input type="password" class="login-field-input" id="password" placeholder="••••••••••" required minlength="8" />
               </div>
               <div class="login-field-group">
                 <label class="login-field-label">Confirm Password</label>

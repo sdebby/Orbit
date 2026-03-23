@@ -123,6 +123,21 @@ router.post('/forgot-password', (req, res) => {
   );
 });
 
+// GET /api/auth/validate-reset-token/:token
+router.get('/validate-reset-token/:token', (req, res) => {
+  const { token } = req.params;
+  if (!HEX_TOKEN_RE.test(token)) return res.status(400).json({ error: 'Invalid reset link' });
+
+  const user = db.prepare('SELECT id, reset_token_expires FROM users WHERE reset_token = ?').get(token);
+  if (!user) return res.status(400).json({ error: 'This reset link has already been used' });
+  if (user.reset_token_expires < Date.now()) {
+    // Clean up expired token
+    db.prepare('UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?').run(user.id);
+    return res.status(400).json({ error: 'This reset link has expired' });
+  }
+  res.json({ valid: true });
+});
+
 // POST /api/auth/reset-password/:token
 router.post('/reset-password/:token', async (req, res) => {
   const { token } = req.params;
@@ -132,8 +147,10 @@ router.post('/reset-password/:token', async (req, res) => {
   if (pwErr) return res.status(400).json({ error: pwErr });
 
   const user = db.prepare('SELECT * FROM users WHERE reset_token = ?').get(token);
-  if (!user || user.reset_token_expires < Date.now()) {
-    return res.status(400).json({ error: 'Reset token is invalid or expired' });
+  if (!user) return res.status(400).json({ error: 'This reset link has already been used' });
+  if (user.reset_token_expires < Date.now()) {
+    db.prepare('UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?').run(user.id);
+    return res.status(400).json({ error: 'This reset link has expired' });
   }
 
   const passwordHash = await hashPassword(password);
