@@ -3,10 +3,11 @@ const router = express.Router();
 const crypto = require('crypto');
 const db = require('../models/db');
 const { sha512, hashPassword, verifyPassword, encryptEmail, decryptEmail } = require('../utils/hash');
-const { signToken } = require('../middleware/auth');
+const { requireAuth, signToken, getAdminEmailHash } = require('../middleware/auth');
 const { sendPasswordResetEmail, sendVerificationEmail } = require('../utils/email');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const HEX_TOKEN_RE = /^[0-9a-f]{64}$/; // 32 bytes = 64 hex chars
 
 function validatePassword(password) {
   if (!password || password.length < 8) return 'Password must be at least 8 characters';
@@ -64,6 +65,11 @@ router.post('/login', async (req, res) => {
     return res.status(403).json({ error: 'EMAIL_NOT_VERIFIED' });
   }
 
+  const adminHash = getAdminEmailHash();
+  const isAdmin = adminHash ? user.email_hash === adminHash : false;
+
+  // Clear any pre-existing session cookie before issuing a new one (session fixation defense)
+  res.clearCookie('orbit_token', { path: '/', sameSite: 'strict' });
   const token = signToken(user.id);
   res.cookie('orbit_token', token, {
     httpOnly: true,
@@ -71,12 +77,13 @@ router.post('/login', async (req, res) => {
     maxAge: 7 * 24 * 60 * 60 * 1000,
     secure: process.env.NODE_ENV === 'production',
   });
-  res.json({ token, userId: user.id, email: decryptEmail(user.email), username: user.username, profilePicture: user.profile_picture });
+  res.json({ userId: user.id, email: decryptEmail(user.email), username: user.username, profilePicture: user.profile_picture, isAdmin });
 });
 
 // GET /api/auth/verify-email/:token
 router.get('/verify-email/:token', (req, res) => {
   const { token } = req.params;
+  if (!HEX_TOKEN_RE.test(token)) return res.status(400).json({ error: 'Invalid verification link' });
   const user = db.prepare('SELECT * FROM users WHERE verify_token = ?').get(token);
 
   if (!user) return res.status(400).json({ error: 'Invalid or already used verification link' });
@@ -119,6 +126,7 @@ router.post('/forgot-password', (req, res) => {
 // POST /api/auth/reset-password/:token
 router.post('/reset-password/:token', async (req, res) => {
   const { token } = req.params;
+  if (!HEX_TOKEN_RE.test(token)) return res.status(400).json({ error: 'Invalid reset link' });
   const { password } = req.body;
   const pwErr = validatePassword(password);
   if (pwErr) return res.status(400).json({ error: pwErr });
@@ -136,27 +144,22 @@ router.post('/reset-password/:token', async (req, res) => {
 });
 
 // GET /api/auth/me
-router.get('/me', (req, res) => {
-  const header = req.headers['authorization'];
-  const token = header && header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+router.get('/me', requireAuth, (req, res) => {
+  const user = db.prepare('SELECT id, email, email_hash, username, profile_picture, created_at FROM users WHERE id = ?').get(req.user.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
 
-  const jwt = require('jsonwebtoken');
-  const JWT_SECRET = process.env.JWT_SECRET || 'orbit-dev-secret-change-in-production';
-  try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    const user = db.prepare('SELECT id, email, username, profile_picture, created_at FROM users WHERE id = ?').get(payload.userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    res.cookie('orbit_token', token, {
-      httpOnly: true,
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      secure: process.env.NODE_ENV === 'production',
-    });
-    res.json({ userId: user.id, email: decryptEmail(user.email), username: user.username, profilePicture: user.profile_picture, createdAt: user.created_at });
-  } catch {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
+  const isAdmin = process.env.SUPER_ADMIN_EMAIL
+    ? user.email_hash === sha512(process.env.SUPER_ADMIN_EMAIL.toLowerCase().trim())
+    : false;
+
+  // Refresh cookie
+  res.cookie('orbit_token', req.token, {
+    httpOnly: true,
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    secure: process.env.NODE_ENV === 'production',
+  });
+  res.json({ userId: user.id, email: decryptEmail(user.email), username: user.username, profilePicture: user.profile_picture, createdAt: user.created_at, isAdmin });
 });
 
 module.exports = router;

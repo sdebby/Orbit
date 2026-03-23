@@ -170,8 +170,8 @@ export async function renderProfile(app) {
     if (!confirm('Are you sure you want to delete your account? All your projects, tasks and risks will be permanently deleted. This cannot be undone.')) return;
     try {
       await api.deleteAccount();
-      localStorage.removeItem('orbit_token');
       localStorage.removeItem('orbit_user');
+      document.cookie = 'orbit_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Strict';
       navigate('/login');
     } catch (err) {
       toast(err.message, 'error');

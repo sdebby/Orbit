@@ -91,19 +91,28 @@ try { _db.exec('ALTER TABLE users ADD COLUMN verify_token_expires INTEGER'); } c
 // Mark existing accounts (created before verification was introduced) as already verified
 try { _db.exec("UPDATE users SET email_verified = 1 WHERE email_verified IS NULL OR (verify_token IS NULL AND email_verified = 0)"); } catch {}
 
-// Encrypt existing plaintext emails at rest
+// Encrypt existing plaintext emails at rest, and re-encrypt with current key
 try {
-  const { encryptEmail } = require('../utils/hash');
+  const { encryptEmail, decryptEmail } = require('../utils/hash');
   const allUsers = _db.prepare('SELECT id, email FROM users').all();
   const updateStmt = _db.prepare('UPDATE users SET email = ? WHERE id = ?');
   for (const row of allUsers) {
     if (row.email && row.email.includes('@')) {
+      // Plaintext email — encrypt it
       updateStmt.run([encryptEmail(row.email), row.id]);
+    } else if (row.email && process.env.EMAIL_ENCRYPTION_KEY) {
+      // Already encrypted — re-encrypt with current (dedicated) key
+      const plain = decryptEmail(row.email);
+      if (plain && plain.includes('@')) {
+        const freshEnc = encryptEmail(plain);
+        if (freshEnc !== row.email) updateStmt.run([freshEnc, row.id]);
+      }
     }
   }
 } catch (e) { console.error('Email encryption migration:', e.message); }
 
 try { _db.exec('ALTER TABLE projects ADD COLUMN favorite INTEGER DEFAULT 0'); } catch {}
+try { _db.exec('ALTER TABLE users ADD COLUMN last_active INTEGER'); } catch {}
 
 // Migrate risks from bucket-level to project-level
 try {

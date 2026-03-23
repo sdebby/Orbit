@@ -94,6 +94,7 @@ app.use('/api/projects/:projectId/buckets', require('./routes/buckets'));
 app.use('/api/buckets/:bucketId/tasks', require('./routes/tasks'));
 app.use('/api/projects/:projectId/risks', require('./routes/risks'));
 app.use('/api/profile', require('./routes/profile'));
+app.use('/api/admin', require('./routes/admin'));
 
 // Standalone bucket/task/risk routes (without prefix context)
 app.use('/api/buckets', require('./routes/buckets'));

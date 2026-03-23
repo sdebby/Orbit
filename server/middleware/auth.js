@@ -1,22 +1,55 @@
 const jwt = require('jsonwebtoken');
+const db = require('../models/db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'orbit-dev-secret-change-in-production';
 
-function requireAuth(req, res, next) {
+function extractToken(req) {
+  // 1. Bearer header (for backward compat / API clients)
   const header = req.headers['authorization'];
-  const token = header && header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (header && header.startsWith('Bearer ')) return header.slice(7);
+  // 2. HttpOnly cookie (primary auth mechanism)
+  const cookie = (req.headers.cookie || '').split(';').map(c => c.trim()).find(c => c.startsWith('orbit_token='));
+  return cookie ? cookie.split('=')[1] : null;
+}
+
+function requireAuth(req, res, next) {
+  const token = extractToken(req);
   if (!token) return res.status(401).json({ error: 'Authentication required' });
 
   try {
     req.user = jwt.verify(token, JWT_SECRET);
+    req.token = token;
+    db.prepare('UPDATE users SET last_active = ? WHERE id = ?').run(Math.floor(Date.now() / 1000), req.user.userId);
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
 
+// Cache admin email hash at startup to avoid recomputing on every request
+const { sha512 } = require('../utils/hash');
+let _cachedAdminHash = null;
+function getAdminEmailHash() {
+  const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
+  if (!superAdminEmail) return null;
+  if (!_cachedAdminHash) _cachedAdminHash = sha512(superAdminEmail.toLowerCase().trim());
+  return _cachedAdminHash;
+}
+
+function requireAdmin(req, res, next) {
+  const adminHash = getAdminEmailHash();
+  if (!adminHash) return res.status(403).json({ error: 'Forbidden' });
+
+  const user = db.prepare('SELECT email_hash FROM users WHERE id = ?').get(req.user.userId);
+
+  if (!user || user.email_hash !== adminHash) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  next();
+}
+
 function signToken(userId) {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
 }
 
-module.exports = { requireAuth, signToken };
+module.exports = { requireAuth, requireAdmin, signToken, getAdminEmailHash };

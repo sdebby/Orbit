@@ -28,7 +28,22 @@ async function verifyPassword(password, hash) {
 
 // --- Email encryption at rest (AES-256-GCM) ---
 
+const UPLOAD_PATH_RE = /^\/uploads\/[\w\-\.]+$/;
+
+function safePicturePath(p) {
+  if (!p) return null;
+  return UPLOAD_PATH_RE.test(p) ? p : null;
+}
+
 function getEmailKey() {
+  // Prefer dedicated key; fall back to old derivation for backward compat
+  const dedicated = process.env.EMAIL_ENCRYPTION_KEY;
+  if (dedicated) return Buffer.from(dedicated, 'hex');
+  const secret = process.env.JWT_SECRET || '';
+  return crypto.createHash('sha256').update('email-encryption:' + secret).digest();
+}
+
+function getLegacyEmailKey() {
   const secret = process.env.JWT_SECRET || '';
   return crypto.createHash('sha256').update('email-encryption:' + secret).digest();
 }
@@ -55,8 +70,19 @@ function decryptEmail(stored) {
     dec += decipher.final('utf8');
     return dec;
   } catch {
-    return stored;
+    // Fall back to legacy key if dedicated key fails (migration transition)
+    try {
+      const [ivHex, tagHex, data] = stored.split(':');
+      const key = getLegacyEmailKey();
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(ivHex, 'hex'));
+      decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
+      let dec = decipher.update(data, 'hex', 'utf8');
+      dec += decipher.final('utf8');
+      return dec;
+    } catch {
+      return stored;
+    }
   }
 }
 
-module.exports = { sha512, hashPassword, verifyPassword, encryptEmail, decryptEmail };
+module.exports = { sha512, hashPassword, verifyPassword, encryptEmail, decryptEmail, safePicturePath };

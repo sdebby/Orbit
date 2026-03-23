@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../models/db');
 const { requireAuth } = require('../middleware/auth');
+const { safePicturePath } = require('../utils/hash');
 const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
@@ -44,7 +45,7 @@ router.get('/', requireAuth, (req, res) => {
     });
   }
 
-  projects = projects.map(p => ({ ...p, tags: JSON.parse(p.tags || '[]') }));
+  projects = projects.map(p => ({ ...p, tags: JSON.parse(p.tags || '[]'), picture: safePicturePath(p.picture) }));
   res.json(projects);
 });
 
@@ -69,7 +70,7 @@ router.get('/:id', requireAuth, (req, res) => {
   const project = db.prepare('SELECT * FROM projects WHERE id = ? AND user_id = ?')
     .get(req.params.id, req.user.userId);
   if (!project) return res.status(404).json({ error: 'Project not found' });
-  res.json({ ...project, tags: JSON.parse(project.tags || '[]') });
+  res.json({ ...project, tags: JSON.parse(project.tags || '[]'), picture: safePicturePath(project.picture) });
 });
 
 // PUT /api/projects/:id

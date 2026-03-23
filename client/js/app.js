@@ -6,6 +6,7 @@ import { renderVerifyEmail } from './pages/verify-email.js';
 import { renderProjects } from './pages/projects.js';
 import { renderBoard } from './pages/board.js';
 import { renderProfile } from './pages/profile.js';
+import { renderAdmin } from './pages/admin.js';
 
 // Apply saved theme before first render
 const savedTheme = localStorage.getItem('orbit_theme') || 'light';
@@ -15,8 +16,8 @@ const app = document.getElementById('app');
 
 function requireAuth(handler) {
   return (params) => {
-    const token = localStorage.getItem('orbit_token');
-    if (!token) {
+    const user = localStorage.getItem('orbit_user');
+    if (!user) {
       navigate('/login');
       return;
     }
@@ -32,9 +33,10 @@ route('/verify-email/:token', (params) => renderVerifyEmail(app, params));
 route('/projects', requireAuth(() => renderProjects(app)));
 route('/projects/:id', requireAuth((params) => renderBoard(app, params)));
 route('/profile', requireAuth(() => renderProfile(app)));
+route('/admin', requireAuth(() => renderAdmin(app)));
 route('/', () => {
-  const token = localStorage.getItem('orbit_token');
-  navigate(token ? '/projects' : '/login');
+  const user = localStorage.getItem('orbit_user');
+  navigate(user ? '/projects' : '/login');
 });
 
 startRouter();

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const db = require('../models/db');
 const { requireAuth } = require('../middleware/auth');
+const { safePicturePath } = require('../utils/hash');
 const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
@@ -38,7 +39,7 @@ router.get('/', requireAuth, (req, res) => {
   }
   const tasks = db.prepare('SELECT * FROM tasks WHERE bucket_id = ? ORDER BY position ASC, created_at ASC')
     .all(req.params.bucketId);
-  res.json(tasks.map(t => ({ ...t, tags: JSON.parse(t.tags || '[]') })));
+  res.json(tasks.map(t => ({ ...t, tags: JSON.parse(t.tags || '[]'), picture: safePicturePath(t.picture) })));
 });
 
 // POST /api/buckets/:bucketId/tasks
@@ -62,7 +63,7 @@ router.post('/', requireAuth, upload.single('picture'), (req, res) => {
   ).run(req.params.bucketId, description, p, due_date || null, JSON.stringify(tagsArr), position, picture);
 
   const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json({ ...task, tags: JSON.parse(task.tags) });
+  res.status(201).json({ ...task, tags: JSON.parse(task.tags), picture: safePicturePath(task.picture) });
 });
 
 // GET /api/tasks/:id
@@ -74,7 +75,7 @@ router.get('/:id', requireAuth, (req, res) => {
     WHERE t.id = ? AND p.user_id = ?
   `).get(req.params.id, req.user.userId);
   if (!task) return res.status(404).json({ error: 'Task not found' });
-  res.json({ ...task, tags: JSON.parse(task.tags || '[]') });
+  res.json({ ...task, tags: JSON.parse(task.tags || '[]'), picture: safePicturePath(task.picture) });
 });
 
 // PUT /api/tasks/:id
@@ -91,9 +92,14 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
   const validPriorities = ['Low', 'Medium', 'High'];
   const p = validPriorities.includes(priority) ? priority : task.priority;
 
-  // Allow moving task to a different bucket (within same user's project)
+  // Allow moving task to a different bucket only within the same project
   let targetBucketId = task.bucket_id;
   if (bucket_id && bucket_id !== task.bucket_id) {
+    const currentProject = db.prepare('SELECT project_id FROM buckets WHERE id = ?').get(task.bucket_id);
+    const targetBucket = db.prepare('SELECT project_id FROM buckets WHERE id = ?').get(bucket_id);
+    if (!targetBucket || !currentProject || targetBucket.project_id !== currentProject.project_id) {
+      return res.status(400).json({ error: 'Target bucket must be in the same project' });
+    }
     if (ownsBucket(req.user.userId, bucket_id)) targetBucketId = bucket_id;
   }
 
@@ -111,7 +117,7 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
     .run(targetBucketId, description || task.description, p, due_date ?? task.due_date, JSON.stringify(tagsArr), position ?? task.position, picture, completedAt, task.id);
 
   const updated = db.prepare('SELECT * FROM tasks WHERE id = ?').get(task.id);
-  res.json({ ...updated, tags: JSON.parse(updated.tags) });
+  res.json({ ...updated, tags: JSON.parse(updated.tags), picture: safePicturePath(updated.picture) });
 });
 
 // DELETE /api/tasks/:id

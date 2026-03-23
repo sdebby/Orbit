@@ -1,13 +1,7 @@
 const BASE = '/api';
 
-function getToken() {
-  return localStorage.getItem('orbit_token');
-}
-
 async function request(method, path, body, formData) {
   const headers = {};
-  const token = getToken();
-  if (token) headers['Authorization'] = `Bearer ${token}`;
 
   let reqBody;
   if (formData) {
@@ -17,10 +11,16 @@ async function request(method, path, body, formData) {
     reqBody = JSON.stringify(body);
   }
 
-  const res = await fetch(BASE + path, { method, headers, body: reqBody });
+  const res = await fetch(BASE + path, { method, headers, body: reqBody, credentials: 'include' });
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
+    // Auto-redirect to login on auth failure (expired/invalid cookie)
+    if (res.status === 401 && !path.startsWith('/auth/')) {
+      localStorage.removeItem('orbit_user');
+      document.cookie = 'orbit_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Strict';
+      window.location.hash = '#/login';
+    }
     const err = new Error(data.error || `Request failed: ${res.status}`);
     err.status = res.status;
     throw err;
@@ -70,6 +70,18 @@ export const api = {
     ? request('PUT', `/tasks/${id}`, null, data)
     : request('PUT', `/tasks/${id}`, data),
   deleteTask: (id) => request('DELETE', `/tasks/${id}`),
+
+  // Admin
+  getAdminStats: () => request('GET', '/admin/stats'),
+  getAdminUsers: (q, page) => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (page) params.set('page', page);
+    const qs = params.toString();
+    return request('GET', `/admin/users${qs ? '?' + qs : ''}`);
+  },
+  adminDeleteUser: (id) => request('DELETE', `/admin/users/${id}`),
+  adminResetPassword: (id) => request('POST', `/admin/users/${id}/reset-password`),
 
   // Risks
   getRisks: (projectId) => request('GET', `/projects/${projectId}/risks`),

@@ -227,6 +227,9 @@ export function navbarHtml({ hideProfile = false } = {}) {
   const avatarEl = hideProfile
     ? `<span class="navbar-avatar">${avatarInner}</span>`
     : `<button class="navbar-avatar" id="nav-profile" title="Profile">${avatarInner}</button>`;
+  const adminLink = user.isAdmin
+    ? `<button class="nav-link" id="nav-admin" title="Admin Panel">Admin</button>`
+    : '';
   return `
     <nav class="navbar">
       <span class="navbar-brand">
@@ -236,6 +239,7 @@ export function navbarHtml({ hideProfile = false } = {}) {
       </span>
       <div class="navbar-sep"></div>
       <span class="navbar-spacer"></span>
+      ${adminLink}
       ${avatarEl}
       <button class="nav-link" id="nav-logout">Sign out</button>
     </nav>
@@ -244,8 +248,8 @@ export function navbarHtml({ hideProfile = false } = {}) {
 
 export function setupNavbar() {
   document.getElementById('nav-profile')?.addEventListener('click', () => navigate('/profile'));
+  document.getElementById('nav-admin')?.addEventListener('click', () => navigate('/admin'));
   document.getElementById('nav-logout')?.addEventListener('click', () => {
-    localStorage.removeItem('orbit_token');
     localStorage.removeItem('orbit_user');
     document.cookie = 'orbit_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Strict';
     navigate('/login');
