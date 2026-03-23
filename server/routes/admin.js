@@ -68,6 +68,19 @@ router.delete('/users/:id', (req, res) => {
   res.json({ message: 'User deleted' });
 });
 
+// POST /api/admin/users/bulk-delete
+router.post('/users/bulk-delete', (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'No users selected' });
+
+  const targetIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id) && id !== req.user.userId);
+  if (!targetIds.length) return res.status(400).json({ error: 'Cannot delete your own admin account' });
+
+  const placeholders = targetIds.map(() => '?').join(',');
+  const result = db.prepare(`DELETE FROM users WHERE id IN (${placeholders})`).run(...targetIds);
+  res.json({ message: `${result.changes} user(s) deleted` });
+});
+
 // POST /api/admin/users/:id/reset-password
 // Generates a reset token and sends a password-reset email to the user
 router.post('/users/:id/reset-password', (req, res) => {

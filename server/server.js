@@ -11,10 +11,11 @@ const ALLOWED_ORIGIN = process.env.APP_URL || 'http://localhost:3000';
 
 // Security headers
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'same-origin' },
+  crossOriginResourcePolicy: false,
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
+      connectSrc: ["'self'"],
       imgSrc: ["'self'", 'data:', 'blob:'],
       scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
@@ -122,4 +123,8 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`Orbit server running on http://localhost:${PORT}`);
+  if (ALLOWED_ORIGIN.includes('localhost')) {
+    console.log(`\n⚠  APP_URL is set to ${ALLOWED_ORIGIN}`);
+    console.log(`   If accessing from an external IP or domain, update APP_URL in .env to match.\n`);
+  }
 });

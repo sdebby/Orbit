@@ -6,6 +6,7 @@ import { navbarHtml, setupNavbar } from './projects.js';
 let searchTimeout = null;
 let currentPage = 1;
 let statsInterval = null;
+let selectedIds = new Set();
 
 export async function renderAdmin(app) {
   // Check admin access client-side (server enforces it too)
@@ -16,6 +17,7 @@ export async function renderAdmin(app) {
   }
 
   if (statsInterval) clearInterval(statsInterval);
+  selectedIds.clear();
 
   app.innerHTML = `
     <div class="app-layout">
@@ -34,6 +36,11 @@ export async function renderAdmin(app) {
               <div class="projects-search-icon"></div>
               <input type="search" id="admin-search" placeholder="Search users…" />
             </div>
+          </div>
+          <div class="admin-bulk-bar" id="admin-bulk-bar" style="display:none">
+            <span id="admin-selected-count">0 selected</span>
+            <button class="btn btn-sm btn-danger" id="admin-bulk-delete">Delete Selected</button>
+            <button class="btn btn-sm btn-outline" id="admin-bulk-clear">Clear Selection</button>
           </div>
           <div id="admin-users-table">
             <div class="spinner-wrap" style="height:200px"><div class="spinner"></div></div>
@@ -55,6 +62,26 @@ export async function renderAdmin(app) {
     currentPage = 1;
     searchTimeout = setTimeout(() => loadUsers(e.target.value), 300);
   });
+
+  document.getElementById('admin-bulk-delete').addEventListener('click', bulkDelete);
+  document.getElementById('admin-bulk-clear').addEventListener('click', () => {
+    selectedIds.clear();
+    updateBulkBar();
+    document.querySelectorAll('.admin-row-cb').forEach(cb => cb.checked = false);
+    const selectAll = document.getElementById('admin-select-all');
+    if (selectAll) selectAll.checked = false;
+  });
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById('admin-bulk-bar');
+  if (!bar) return;
+  if (selectedIds.size > 0) {
+    bar.style.display = '';
+    document.getElementById('admin-selected-count').textContent = `${selectedIds.size} selected`;
+  } else {
+    bar.style.display = 'none';
+  }
 }
 
 async function loadStats() {
@@ -118,11 +145,13 @@ function renderUsersTable(el, users) {
   }
 
   const currentUser = JSON.parse(localStorage.getItem('orbit_user') || '{}');
+  const selectableIds = users.filter(u => u.id !== currentUser.userId).map(u => u.id);
 
   el.innerHTML = `
     <table class="admin-table">
       <thead>
         <tr>
+          <th class="admin-cb-col"><input type="checkbox" id="admin-select-all" title="Select all" /></th>
           <th></th>
           <th>Email</th>
           <th>Username</th>
@@ -141,6 +170,9 @@ function renderUsersTable(el, users) {
           const isSelf = u.id === currentUser.userId;
           return `
             <tr>
+              <td class="admin-cb-col">
+                ${isSelf ? '' : `<input type="checkbox" class="admin-row-cb" data-id="${u.id}" ${selectedIds.has(u.id) ? 'checked' : ''} />`}
+              </td>
               <td>${avatar}</td>
               <td>${escHtml(u.email || '')}${isSelf ? ' <span class="admin-you-badge">you</span>' : ''}</td>
               <td>${escHtml(u.username || '—')}</td>
@@ -160,6 +192,29 @@ function renderUsersTable(el, users) {
     </table>
   `;
 
+  // Select-all checkbox
+  const selectAllCb = document.getElementById('admin-select-all');
+  selectAllCb.checked = selectableIds.length > 0 && selectableIds.every(id => selectedIds.has(id));
+  selectAllCb.addEventListener('change', (e) => {
+    if (e.target.checked) {
+      selectableIds.forEach(id => selectedIds.add(id));
+    } else {
+      selectableIds.forEach(id => selectedIds.delete(id));
+    }
+    el.querySelectorAll('.admin-row-cb').forEach(cb => cb.checked = e.target.checked);
+    updateBulkBar();
+  });
+
+  // Row checkboxes
+  el.querySelectorAll('.admin-row-cb').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const id = parseInt(cb.dataset.id);
+      if (cb.checked) selectedIds.add(id); else selectedIds.delete(id);
+      selectAllCb.checked = selectableIds.every(id => selectedIds.has(id));
+      updateBulkBar();
+    });
+  });
+
   el.querySelectorAll('.admin-reset-btn').forEach(btn => {
     btn.addEventListener('click', () => sendResetEmail(btn.dataset.id, btn.dataset.email));
   });
@@ -167,6 +222,8 @@ function renderUsersTable(el, users) {
   el.querySelectorAll('.admin-delete-btn').forEach(btn => {
     btn.addEventListener('click', () => deleteUser(btn.dataset.id, btn.dataset.email));
   });
+
+  updateBulkBar();
 }
 
 function renderPagination(page, totalPages) {
@@ -204,6 +261,21 @@ async function deleteUser(userId, email) {
   try {
     await api.adminDeleteUser(userId);
     toast('User deleted');
+    selectedIds.delete(parseInt(userId));
+    loadStats();
+    loadUsers(document.getElementById('admin-search')?.value || '');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function bulkDelete() {
+  if (!selectedIds.size) return;
+  if (!confirm(`Delete ${selectedIds.size} user(s)? This will permanently remove all their data.`)) return;
+  try {
+    const result = await api.adminBulkDeleteUsers([...selectedIds]);
+    toast(result.message);
+    selectedIds.clear();
     loadStats();
     loadUsers(document.getElementById('admin-search')?.value || '');
   } catch (err) {

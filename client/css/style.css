@@ -1162,6 +1162,18 @@ body[data-theme="dark"] .admin-table tbody tr:hover { background: rgba(255,255,2
 }
 .admin-page-info { font-size: 0.85rem; color: var(--gray-500); }
 
+.admin-cb-col { width: 36px; text-align: center; }
+.admin-cb-col input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; accent-color: var(--blue); }
+
+.admin-bulk-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px; margin-bottom: 12px;
+  background: var(--surface); border: 1px solid var(--blue);
+  border-radius: var(--radius); font-size: 0.88rem;
+}
+.admin-bulk-bar span { font-weight: 600; color: var(--text); }
+body[data-theme="dark"] .admin-bulk-bar { border-color: rgba(0,82,204,0.5); }
+
 /* ========= Profile Page ========= */
 .profile-page {
   padding: 32px 24px;

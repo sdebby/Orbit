@@ -82,6 +82,7 @@ export const api = {
     return request('GET', `/admin/users${qs ? '?' + qs : ''}`);
   },
   adminDeleteUser: (id) => request('DELETE', `/admin/users/${id}`),
+  adminBulkDeleteUsers: (ids) => request('POST', '/admin/users/bulk-delete', { ids }),
   adminResetPassword: (id) => request('POST', `/admin/users/${id}/reset-password`),
 
   // Risks
