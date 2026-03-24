@@ -10,7 +10,8 @@
       "WebFetch(domain:fonts.googleapis.com)",
       "Bash(find C:/Users/shmul/Workspace/WebSites/Orbit -name *verify* -type f)",
       "Bash(git push:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git add:*)"
     ]
   }
 }

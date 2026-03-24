@@ -54,7 +54,6 @@ function renderGrid(grid, projects) {
       <div class="empty-state">
         <h3>No projects yet</h3>
         <p>Create your first project to get started.</p>
-        <button class="btn btn-primary" onclick="document.getElementById('new-project-btn').click()">+ New Project</button>
       </div>
     `;
     return;
