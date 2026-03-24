@@ -21,6 +21,7 @@ app.use(helmet({
       scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       fontSrc: ["'self'"],
+      upgradeInsecureRequests: null,
     },
   },
 }));
