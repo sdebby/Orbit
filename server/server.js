@@ -122,7 +122,7 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Orbit server running on http://localhost:${PORT}`);
+  console.log(`Orbit server running on ${ALLOWED_ORIGIN}`);
   if (ALLOWED_ORIGIN.includes('localhost')) {
     console.log(`\n⚠  APP_URL is set to ${ALLOWED_ORIGIN}`);
     console.log(`   If accessing from an external IP or domain, update APP_URL in .env to match.\n`);

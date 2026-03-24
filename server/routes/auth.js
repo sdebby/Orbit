@@ -111,7 +111,7 @@ router.post('/forgot-password', (req, res) => {
     db.prepare('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?')
       .run(token, expires, user.id);
 
-    const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/client/index.html#/reset-password/${token}`;
+    const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/#/reset-password/${token}`;
     sendPasswordResetEmail(emailNorm, resetLink).catch(console.error);
   }
 

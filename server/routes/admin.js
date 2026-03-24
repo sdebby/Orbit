@@ -95,7 +95,7 @@ router.post('/users/:id/reset-password', (req, res) => {
     .run(token, expires, targetId);
 
   const email = decryptEmail(user.email);
-  const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/client/index.html#/reset-password/${token}`;
+  const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/#/reset-password/${token}`;
   sendPasswordResetEmail(email, resetLink).catch(console.error);
 
   res.json({ message: 'Password reset email sent' });
