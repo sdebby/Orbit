@@ -1259,6 +1259,8 @@ body[data-theme="dark"] .admin-bulk-bar { border-color: rgba(0,82,204,0.5); }
 .settings-row-title { font-size: 14px; font-weight: 600; color: var(--gray-800); margin-bottom: 2px; }
 .settings-row-desc { font-size: 12px; color: var(--gray-500); line-height: 1.4; }
 
+.settings-divider { border: none; border-top: 1px solid var(--gray-200); margin: 16px 0; }
+
 /* Danger zone card override */
 .settings-card.danger-zone { border: 1px solid var(--red-bg); }
 .settings-card.danger-zone .settings-card-header {

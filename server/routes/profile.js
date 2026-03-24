@@ -59,6 +59,90 @@ router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) 
   res.json({ userId: updated.id, email: decryptEmail(updated.email), username: updated.username, profilePicture: updated.profile_picture, createdAt: updated.created_at });
 });
 
+// GET /api/profile/export  — download all user data as XML
+router.get('/export', requireAuth, (req, res) => {
+  function escXml(val) {
+    if (val === null || val === undefined) return '';
+    return String(val)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+
+  const projects = db.prepare('SELECT * FROM projects WHERE user_id = ? ORDER BY created_at ASC').all(req.user.userId);
+  const lines = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    `<orbit-export version="1" exported-at="${new Date().toISOString()}">`,
+    '  <projects>',
+  ];
+
+  for (const p of projects) {
+    const pTags = JSON.parse(p.tags || '[]');
+    const buckets = db.prepare('SELECT * FROM buckets WHERE project_id = ? ORDER BY position ASC').all(p.id);
+    const risks = db.prepare('SELECT * FROM risks WHERE project_id = ? ORDER BY position ASC').all(p.id);
+
+    lines.push('    <project>');
+    lines.push(`      <title>${escXml(p.title)}</title>`);
+    lines.push(`      <description>${escXml(p.description)}</description>`);
+    lines.push('      <tags>');
+    pTags.forEach(t => lines.push(`        <tag>${escXml(t)}</tag>`));
+    lines.push('      </tags>');
+
+    lines.push('      <buckets>');
+    for (const b of buckets) {
+      const tasks = db.prepare('SELECT * FROM tasks WHERE bucket_id = ? ORDER BY position ASC').all(b.id);
+      lines.push('        <bucket>');
+      lines.push(`          <title>${escXml(b.title)}</title>`);
+      lines.push(`          <description>${escXml(b.description)}</description>`);
+      lines.push(`          <color>${escXml(b.color)}</color>`);
+      lines.push('          <tasks>');
+      for (const t of tasks) {
+        const tTags = JSON.parse(t.tags || '[]');
+        lines.push('            <task>');
+        lines.push(`              <description>${escXml(t.description)}</description>`);
+        lines.push(`              <priority>${escXml(t.priority)}</priority>`);
+        lines.push(`              <due-date>${escXml(t.due_date)}</due-date>`);
+        lines.push(`              <completed>${t.completed_at ? 'true' : 'false'}</completed>`);
+        lines.push('              <tags>');
+        tTags.forEach(tag => lines.push(`                <tag>${escXml(tag)}</tag>`));
+        lines.push('              </tags>');
+        lines.push('            </task>');
+      }
+      lines.push('          </tasks>');
+      lines.push('        </bucket>');
+    }
+    lines.push('      </buckets>');
+
+    lines.push('      <risks>');
+    for (const r of risks) {
+      const rTags = JSON.parse(r.tags || '[]');
+      lines.push('        <risk>');
+      lines.push(`          <description>${escXml(r.description)}</description>`);
+      lines.push(`          <severity>${r.severity}</severity>`);
+      lines.push(`          <probability>${r.probability}</probability>`);
+      lines.push(`          <detectability>${r.detectability}</detectability>`);
+      lines.push(`          <solution-description>${escXml(r.solution_description)}</solution-description>`);
+      lines.push(`          <status>${escXml(r.status)}</status>`);
+      lines.push('          <tags>');
+      rTags.forEach(tag => lines.push(`            <tag>${escXml(tag)}</tag>`));
+      lines.push('          </tags>');
+      lines.push('        </risk>');
+    }
+    lines.push('      </risks>');
+    lines.push('    </project>');
+  }
+
+  lines.push('  </projects>');
+  lines.push('</orbit-export>');
+
+  const filename = `orbit-export-${new Date().toISOString().split('T')[0]}.xml`;
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(lines.join('\n'));
+});
+
 // DELETE /api/profile  — permanently delete account and all data
 router.delete('/', requireAuth, (req, res) => {
   db.prepare('DELETE FROM users WHERE id = ?').run(req.user.userId);

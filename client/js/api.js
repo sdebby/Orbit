@@ -41,6 +41,22 @@ export const api = {
   // Profile
   updateProfile: (formData) => request('PUT', '/profile', null, formData),
   deleteAccount: () => request('DELETE', '/profile'),
+  exportProjects: async () => {
+    const res = await fetch(BASE + '/profile/export', { credentials: 'include' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Export failed');
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `orbit-export-${new Date().toISOString().split('T')[0]}.xml`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
 
   // Projects
   getProjects: (q, tags) => {
