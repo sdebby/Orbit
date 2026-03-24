@@ -12,6 +12,7 @@ const ALLOWED_ORIGIN = process.env.APP_URL || 'http://localhost:3000';
 // Security headers
 app.use(helmet({
   crossOriginResourcePolicy: false,
+  hsts: false,
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
