@@ -49,10 +49,13 @@ router.post('/', requireAuth, upload.single('picture'), (req, res) => {
   }
   const { description, priority, due_date, tags } = req.body;
   if (!description) return res.status(400).json({ error: 'Description is required' });
+  if (description.length > 2000) return res.status(400).json({ error: 'Description must be 2000 characters or fewer' });
 
   const validPriorities = ['Low', 'Medium', 'High'];
   const p = validPriorities.includes(priority) ? priority : 'Medium';
   const tagsArr = tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : [];
+  if (tagsArr.length > 20) return res.status(400).json({ error: 'Too many tags (max 20)' });
+  if (tagsArr.some(t => t.length > 50)) return res.status(400).json({ error: 'Each tag must be 50 characters or fewer' });
   const picture = req.file ? `/uploads/${req.file.filename}` : null;
 
   const maxPos = db.prepare('SELECT MAX(position) as m FROM tasks WHERE bucket_id = ?').get(req.params.bucketId);
@@ -89,6 +92,7 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
   if (!task) return res.status(404).json({ error: 'Task not found' });
 
   const { description, priority, due_date, tags, position, bucket_id, completed } = req.body;
+  if (description !== undefined && description.length > 2000) return res.status(400).json({ error: 'Description must be 2000 characters or fewer' });
   const validPriorities = ['Low', 'Medium', 'High'];
   const p = validPriorities.includes(priority) ? priority : task.priority;
 
@@ -104,7 +108,9 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
   }
 
   const tagsArr = tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : JSON.parse(task.tags || '[]');
-  const picture = req.file ? `/uploads/${req.file.filename}` : task.picture;
+  if (tagsArr.length > 20) return res.status(400).json({ error: 'Too many tags (max 20)' });
+  if (tagsArr.some(t => t.length > 50)) return res.status(400).json({ error: 'Each tag must be 50 characters or fewer' });
+  const picture = req.file ? `/uploads/${req.file.filename}` : safePicturePath(task.picture);
 
   let completedAt = task.completed_at;
   if (completed === 'true' || completed === true) {

@@ -88,6 +88,14 @@ const verifyEmailLimiter = rateLimit({
   message: { error: 'Too many verification attempts, please try again later' },
 });
 
+const profileLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many profile requests, please try again later' },
+});
+
 // API Routes
 app.use('/api/auth/verify-email', verifyEmailLimiter);
 app.use('/api/auth/forgot-password', forgotPasswordLimiter);
@@ -96,7 +104,7 @@ app.use('/api/projects', require('./routes/projects'));
 app.use('/api/projects/:projectId/buckets', require('./routes/buckets'));
 app.use('/api/buckets/:bucketId/tasks', require('./routes/tasks'));
 app.use('/api/projects/:projectId/risks', require('./routes/risks'));
-app.use('/api/profile', require('./routes/profile'));
+app.use('/api/profile', profileLimiter, require('./routes/profile'));
 app.use('/api/admin', require('./routes/admin'));
 
 // Standalone bucket/task/risk routes (without prefix context)

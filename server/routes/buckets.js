@@ -3,6 +3,11 @@ const router = express.Router({ mergeParams: true });
 const db = require('../models/db');
 const { requireAuth } = require('../middleware/auth');
 
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+function validColor(c) {
+  return c && HEX_COLOR_RE.test(c) ? c : null;
+}
+
 function ownsProject(userId, projectId) {
   return db.prepare('SELECT id FROM projects WHERE id = ? AND user_id = ?').get(projectId, userId);
 }
@@ -24,6 +29,8 @@ router.post('/', requireAuth, (req, res) => {
   }
   const { title, description, color } = req.body;
   if (!title) return res.status(400).json({ error: 'Title is required' });
+  if (title.length > 100) return res.status(400).json({ error: 'Title must be 100 characters or fewer' });
+  if (description && description.length > 5000) return res.status(400).json({ error: 'Description must be 5000 characters or fewer' });
 
   const maxPos = db.prepare('SELECT MAX(position) as m FROM buckets WHERE project_id = ?')
     .get(req.params.projectId);
@@ -31,7 +38,7 @@ router.post('/', requireAuth, (req, res) => {
 
   const result = db.prepare(
     'INSERT INTO buckets (project_id, title, description, color, position) VALUES (?, ?, ?, ?, ?)'
-  ).run(req.params.projectId, title, description || null, color || null, position);
+  ).run(req.params.projectId, title, description || null, validColor(color), position);
 
   const bucket = db.prepare('SELECT * FROM buckets WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(bucket);
@@ -44,8 +51,11 @@ router.put('/:id', requireAuth, (req, res) => {
   if (!bucket) return res.status(404).json({ error: 'Bucket not found' });
 
   const { title, description, color, position } = req.body;
+  if (title !== undefined && title.length > 100) return res.status(400).json({ error: 'Title must be 100 characters or fewer' });
+  if (description !== undefined && description.length > 5000) return res.status(400).json({ error: 'Description must be 5000 characters or fewer' });
+  const safePos = position !== undefined ? Math.min(Math.max(1, parseInt(position) || 1), 10000) : bucket.position;
   db.prepare('UPDATE buckets SET title = ?, description = ?, color = ?, position = ? WHERE id = ?')
-    .run(title || bucket.title, description ?? bucket.description, color !== undefined ? (color || null) : bucket.color, position ?? bucket.position, bucket.id);
+    .run(title || bucket.title, description ?? bucket.description, color !== undefined ? validColor(color) : bucket.color, safePos, bucket.id);
 
   const updated = db.prepare('SELECT * FROM buckets WHERE id = ?').get(bucket.id);
   res.json(updated);

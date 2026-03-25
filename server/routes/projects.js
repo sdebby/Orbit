@@ -53,8 +53,12 @@ router.get('/', requireAuth, (req, res) => {
 router.post('/', requireAuth, upload.single('picture'), (req, res) => {
   const { title, description, tags } = req.body;
   if (!title) return res.status(400).json({ error: 'Title is required' });
+  if (title.length > 100) return res.status(400).json({ error: 'Title must be 100 characters or fewer' });
+  if (description && description.length > 5000) return res.status(400).json({ error: 'Description must be 5000 characters or fewer' });
 
   const tagsArr = tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : [];
+  if (tagsArr.length > 20) return res.status(400).json({ error: 'Too many tags (max 20)' });
+  if (tagsArr.some(t => t.length > 50)) return res.status(400).json({ error: 'Each tag must be 50 characters or fewer' });
   const picture = req.file ? `/uploads/${req.file.filename}` : null;
 
   const result = db.prepare(
@@ -80,11 +84,15 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
   if (!project) return res.status(404).json({ error: 'Project not found' });
 
   const { title, description, tags, remove_picture } = req.body;
+  if (title !== undefined && title.length > 100) return res.status(400).json({ error: 'Title must be 100 characters or fewer' });
+  if (description !== undefined && description.length > 5000) return res.status(400).json({ error: 'Description must be 5000 characters or fewer' });
   const tagsArr = tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : JSON.parse(project.tags || '[]');
+  if (tagsArr.length > 20) return res.status(400).json({ error: 'Too many tags (max 20)' });
+  if (tagsArr.some(t => t.length > 50)) return res.status(400).json({ error: 'Each tag must be 50 characters or fewer' });
   let picture;
   if (req.file) picture = `/uploads/${req.file.filename}`;
   else if (remove_picture === 'true') picture = null;
-  else picture = project.picture;
+  else picture = safePicturePath(project.picture);
 
   db.prepare('UPDATE projects SET title = ?, description = ?, picture = ?, tags = ? WHERE id = ?')
     .run(title || project.title, description ?? project.description, picture, JSON.stringify(tagsArr), project.id);

@@ -318,8 +318,8 @@ export async function renderBoard(app, params) {
       </div>
     `;
 
-    // Apply bucket color to header
-    if (bucket.color) {
+    // Apply bucket color to header — only allow validated hex colors
+    if (bucket.color && /^#[0-9a-fA-F]{6}$/.test(bucket.color)) {
       const header = col.querySelector('.bucket-header');
       header.style.background = bucket.color;
       header.style.borderRadius = 'var(--radius) var(--radius) 0 0';

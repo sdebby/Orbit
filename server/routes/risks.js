@@ -70,12 +70,16 @@ router.post('/', requireAuth, upload.single('photo'), (req, res) => {
 
   const { description, severity, probability, detectability, solution_description, status, tags } = req.body;
   if (!description) return res.status(400).json({ error: 'Description is required' });
+  if (description.length > 2000) return res.status(400).json({ error: 'Description must be 2000 characters or fewer' });
+  if (solution_description && solution_description.length > 5000) return res.status(400).json({ error: 'Solution description must be 5000 characters or fewer' });
 
   const s = Math.min(10, Math.max(1, parseInt(severity) || 5));
   const pr = Math.min(10, Math.max(1, parseInt(probability) || 5));
   const d = Math.min(10, Math.max(1, parseInt(detectability) || 5));
   const validStatus = ['Open', 'Resolved'].includes(status) ? status : 'Open';
   const tagsArr = tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : [];
+  if (tagsArr.length > 20) return res.status(400).json({ error: 'Too many tags (max 20)' });
+  if (tagsArr.some(t => t.length > 50)) return res.status(400).json({ error: 'Each tag must be 50 characters or fewer' });
   const photosArr = req.file ? [`/uploads/${req.file.filename}`] : [];
 
   const maxPos = db.prepare('SELECT MAX(position) as m FROM risks WHERE project_id = ?').get(req.params.projectId);
@@ -103,11 +107,15 @@ router.put('/:id', requireAuth, upload.single('photo'), (req, res) => {
   if (!risk) return res.status(404).json({ error: 'Risk not found' });
 
   const { description, severity, probability, detectability, solution_description, status, tags, position } = req.body;
+  if (description !== undefined && description.length > 2000) return res.status(400).json({ error: 'Description must be 2000 characters or fewer' });
+  if (solution_description !== undefined && solution_description.length > 5000) return res.status(400).json({ error: 'Solution description must be 5000 characters or fewer' });
   const s = Math.min(10, Math.max(1, parseInt(severity) || risk.severity));
   const pr = Math.min(10, Math.max(1, parseInt(probability) || risk.probability));
   const d = Math.min(10, Math.max(1, parseInt(detectability) || risk.detectability));
   const validStatus = ['Open', 'Resolved'].includes(status) ? status : risk.status;
   const tagsArr = tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : JSON.parse(risk.tags || '[]');
+  if (tagsArr.length > 20) return res.status(400).json({ error: 'Too many tags (max 20)' });
+  if (tagsArr.some(t => t.length > 50)) return res.status(400).json({ error: 'Each tag must be 50 characters or fewer' });
   const existingPhotos = JSON.parse(risk.photos || '[]');
   const photosArr = req.file ? [...existingPhotos, `/uploads/${req.file.filename}`] : existingPhotos;
 

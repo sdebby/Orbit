@@ -6,6 +6,7 @@ export function toast(msg, type = 'info') {
   setTimeout(() => el.remove(), 3500);
 }
 
+// SECURITY: all user-controlled values in `html` MUST be escaped with escHtml() before passing in.
 export function showModal(html, onClose) {
   document.getElementById('modal-content').innerHTML = html;
   document.getElementById('modal-overlay').classList.remove('hidden');

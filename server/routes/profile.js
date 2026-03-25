@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../models/db');
 const { requireAuth } = require('../middleware/auth');
-const { hashPassword, verifyPassword, decryptEmail } = require('../utils/hash');
+const { hashPassword, verifyPassword, decryptEmail, safePicturePath } = require('../utils/hash');
 
 function validatePassword(password) {
   if (!password || password.length < 8) return 'Password must be at least 8 characters';
@@ -49,8 +49,10 @@ router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) 
     passwordHash = await hashPassword(new_password);
   }
 
-  const picture = req.file ? `/uploads/${req.file.filename}` : user.profile_picture;
-  const updatedUsername = username !== undefined ? (username.trim() || null) : user.username;
+  const picture = req.file ? `/uploads/${req.file.filename}` : safePicturePath(user.profile_picture);
+  const trimmedUsername = username !== undefined ? username.trim() : null;
+  if (trimmedUsername !== null && trimmedUsername.length > 50) return res.status(400).json({ error: 'Username must be 50 characters or fewer' });
+  const updatedUsername = username !== undefined ? (trimmedUsername || null) : user.username;
 
   db.prepare('UPDATE users SET profile_picture = ?, password_hash = ?, username = ? WHERE id = ?')
     .run(picture, passwordHash, updatedUsername, user.id);
