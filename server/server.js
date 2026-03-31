@@ -107,10 +107,11 @@ app.use('/api/projects/:projectId/risks', require('./routes/risks'));
 app.use('/api/profile', profileLimiter, require('./routes/profile'));
 app.use('/api/admin', require('./routes/admin'));
 
-// Standalone bucket/task/risk routes (without prefix context)
+// Standalone bucket/task/risk/checklist routes (without prefix context)
 app.use('/api/buckets', require('./routes/buckets'));
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/risks', require('./routes/risks'));
+app.use('/api/checklists', require('./routes/checklists'));
 
 // SPA fallback
 app.get('*', (req, res) => {

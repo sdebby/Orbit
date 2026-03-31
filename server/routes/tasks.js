@@ -32,13 +32,26 @@ function ownsBucket(userId, bucketId) {
     .get(bucketId, userId);
 }
 
+function ownsTask(userId, taskId) {
+  return db.prepare(`
+    SELECT t.* FROM tasks t
+    JOIN buckets b ON t.bucket_id = b.id
+    JOIN projects p ON b.project_id = p.id
+    WHERE t.id = ? AND p.user_id = ?
+  `).get(taskId, userId);
+}
+
 // GET /api/buckets/:bucketId/tasks
 router.get('/', requireAuth, (req, res) => {
   if (!ownsBucket(req.user.userId, req.params.bucketId)) {
     return res.status(404).json({ error: 'Bucket not found' });
   }
-  const tasks = db.prepare('SELECT * FROM tasks WHERE bucket_id = ? ORDER BY position ASC, created_at ASC')
-    .all(req.params.bucketId);
+  const tasks = db.prepare(`
+    SELECT t.*,
+      (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id) AS checklist_total,
+      (SELECT COUNT(*) FROM task_checklists WHERE task_id = t.id AND checked = 1) AS checklist_done
+    FROM tasks t WHERE t.bucket_id = ? ORDER BY t.position ASC, t.created_at ASC
+  `).all(req.params.bucketId);
   res.json(tasks.map(t => ({ ...t, tags: JSON.parse(t.tags || '[]'), picture: safePicturePath(t.picture) })));
 });
 
@@ -138,6 +151,30 @@ router.delete('/:id', requireAuth, (req, res) => {
 
   db.prepare('DELETE FROM tasks WHERE id = ?').run(task.id);
   res.json({ message: 'Task deleted' });
+});
+
+// GET /api/tasks/:id/checklists
+router.get('/:id/checklists', requireAuth, (req, res) => {
+  const task = ownsTask(req.user.userId, req.params.id);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  const items = db.prepare('SELECT * FROM task_checklists WHERE task_id = ? ORDER BY position ASC, created_at ASC')
+    .all(req.params.id);
+  res.json(items);
+});
+
+// POST /api/tasks/:id/checklists
+router.post('/:id/checklists', requireAuth, (req, res) => {
+  const task = ownsTask(req.user.userId, req.params.id);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  const { text } = req.body;
+  if (!text || !text.trim()) return res.status(400).json({ error: 'Text is required' });
+  if (text.length > 500) return res.status(400).json({ error: 'Text must be 500 characters or fewer' });
+  const maxPos = db.prepare('SELECT MAX(position) as m FROM task_checklists WHERE task_id = ?').get(req.params.id);
+  const position = (maxPos.m || 0) + 1;
+  const result = db.prepare('INSERT INTO task_checklists (task_id, text, position) VALUES (?, ?, ?)')
+    .run(req.params.id, text.trim(), position);
+  const item = db.prepare('SELECT * FROM task_checklists WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json(item);
 });
 
 module.exports = router;

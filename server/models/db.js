@@ -63,6 +63,16 @@ _db.exec(`
     FOREIGN KEY (bucket_id) REFERENCES buckets(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS task_checklists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    checked INTEGER DEFAULT 0,
+    position INTEGER DEFAULT 0,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS risks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     bucket_id INTEGER NOT NULL,
