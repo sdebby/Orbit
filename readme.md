@@ -10,7 +10,7 @@ A personal project management web app inspired by Trello and Microsoft Planner. 
 - **Kanban boards** — unlimited buckets per project with custom header colors, inline storyboard notes, and drag-and-drop column reordering
 - **Tasks** — priority levels (Low / Medium / High), due dates, picture attachments, tags, and completion tracking; drag-and-drop tasks between buckets; done tasks collapse into a "✓ N Done" section per column
 - **Risk management** — severity / probability / detectability scoring with automatic RPN calculation (S × P × D), solution tracking, and status (Open / Resolved); risks shown in a dedicated column on the board
-- **Authentication** — JWT-based login, registration with email verification (link expires in 30 minutes), forgot/reset password via email (SMTP)
+- **Authentication** — JWT-based login with password visibility toggle, registration with email verification (link expires in 30 minutes), forgot/reset password via email (SMTP); all form validation uses in-app toast notifications (no browser tooltips)
 - **Profile** — display name, avatar upload, password change, dark / light mode toggle, delete account
 - **Security** — Argon2id password hashing, AES-256-GCM email encryption at rest, Helmet security headers, CORS origin restriction, CSRF origin check, rate limiting, cookie-authenticated file uploads, self-hosted fonts, UUID-randomised upload filenames, XSS escaping, timing-attack mitigation on forgot-password
 
@@ -202,6 +202,7 @@ Existing accounts created before this feature was introduced are automatically m
 | Password policy | Min 8 characters, uppercase, number, and special character required |
 | Timing attacks | Forgot-password always responds after a minimum 300 ms delay |
 | XSS | All user content escaped via `escHtml()` before DOM insertion |
+| Dependency CVEs | `npm overrides` pin `path-to-regexp@0.1.13`, `picomatch@2.3.2`, `brace-expansion@5.0.5` to patched versions (ReDoS / method-injection fixes) |
 
 ---
 

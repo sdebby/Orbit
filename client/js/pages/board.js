@@ -3,6 +3,63 @@ import { toast, showModal, hideModal, tagsInput, tagsHtml, escHtml, formatDate, 
 import { navigate } from '../router.js';
 import { navbarHtml, setupNavbar, showProjectModal } from './projects.js';
 
+function playDing() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1047, ctx.currentTime);        // C6
+    osc.frequency.exponentialRampToValueAtTime(1319, ctx.currentTime + 0.08); // E6
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.55);
+  } catch { /* audio not available */ }
+}
+
+function checkConfettiMilestone() {
+  const milestoneKey = 'orbit_milestone_10_shown';
+  if (localStorage.getItem(milestoneKey)) return false;
+  const countKey = 'orbit_total_done';
+  const n = parseInt(localStorage.getItem(countKey) || '0', 10) + 1;
+  localStorage.setItem(countKey, n);
+  if (n >= 10) {
+    localStorage.setItem(milestoneKey, '1');
+    return true;
+  }
+  return false;
+}
+
+function showConfetti() {
+  const colors = ['#f44336','#e91e63','#9c27b0','#3f51b5','#2196f3','#00bcd4','#4caf50','#ffeb3b','#ff9800','#ff5722'];
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;overflow:hidden';
+  document.body.appendChild(wrap);
+  for (let i = 0; i < 100; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const size = 6 + Math.random() * 8;
+    const duration = 2.2 + Math.random() * 1.8;
+    const delay = Math.random() * 1.0;
+    el.style.cssText = `
+      left:${Math.random() * 100}%;
+      top:-20px;
+      width:${size}px;
+      height:${size}px;
+      background:${color};
+      border-radius:${Math.random() > 0.5 ? '50%' : '2px'};
+      animation-duration:${duration}s;
+      animation-delay:${delay}s;
+    `;
+    wrap.appendChild(el);
+  }
+  setTimeout(() => wrap.remove(), 4500);
+}
+
 export async function renderBoard(app, params) {
   const projectId = params.id;
   app.innerHTML = `
@@ -374,8 +431,13 @@ export async function renderBoard(app, params) {
         const task = tasks.find(t => t.id == card.dataset.id);
         if (!task) return;
         const nowDone = !task.completed_at;
+        if (nowDone) {
+          playDing();
+          e.currentTarget.classList.add('task-check-shine');
+        }
         try {
           await api.updateTask(task.id, { completed: nowDone });
+          if (nowDone && checkConfettiMilestone()) showConfetti();
           await loadAll();
         } catch (err) {
           toast(err.message, 'error');

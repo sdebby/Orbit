@@ -861,6 +861,27 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   background: var(--green); border-color: var(--green); color: #fff;
 }
 
+@keyframes task-check-shine {
+  0%   { box-shadow: 0 0 0 0 rgba(0,200,83,0.7); transform: scale(1); }
+  30%  { box-shadow: 0 0 0 10px rgba(0,200,83,0); transform: scale(1.35); }
+  60%  { box-shadow: 0 0 6px 2px rgba(0,200,83,0.3); transform: scale(1.15); }
+  100% { box-shadow: 0 0 0 0 rgba(0,200,83,0); transform: scale(1); }
+}
+.task-check-shine {
+  animation: task-check-shine 0.55s ease-out forwards;
+}
+
+@keyframes confetti-fall {
+  0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
+  85%  { opacity: 1; }
+  100% { transform: translateY(105vh) rotate(800deg); opacity: 0; }
+}
+.confetti-piece {
+  position: absolute;
+  pointer-events: none;
+  animation: confetti-fall linear forwards;
+}
+
 .task-done { opacity: .7; }
 .task-done .card-description { text-decoration: line-through; color: var(--gray-500); }
 
