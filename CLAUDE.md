@@ -190,14 +190,16 @@
 - Each bucket has a **storyboard textarea** (editable inline, saved on blur)
 - Each bucket has an optional **color** applied to the column header
 - **Task completion**: checkbox marks task done with timestamp; done tasks move to a collapsible "✓ N Done" section at the bottom of each column
-- **Project-level Risks column**: single column at the end of the board; only shown if risks exist
+- **Project-level Risks column**: always shown as a dedicated board column, even when empty (shows an empty-state message); positioned at the end of the scroll by default, draggable to any position
+- `+ Add Bucket` renders as a full-width (280px) dashed board column at the far right — never a narrow or stacked button
 - **Search**: filters tasks and risks by description or tag in real-time
 - Board background: project picture displayed as dimmed board background
 
 ### Projects Page
 - Card grid of all user projects
 - Search by keyword; filter by tags
-- Create / edit / delete projects with picture, description, and tags
+- Edit / delete revealed via hover `⋮` menu on each card — never always-visible buttons
+- Favorite toggle shows a toast confirmation
 
 ### Profile Page
 - Upload/change avatar (jpg/jpeg/png, max 2 MB)
@@ -226,6 +228,54 @@
 - **Body size**: 10 KB limit on JSON/form payloads
 - **File uploads**: MIME type + extension whitelist (jpg/jpeg/png); filenames replaced with `crypto.randomUUID()` + extension
 - **Timing attack mitigation**: forgot-password always responds after a minimum 300 ms delay
+
+---
+
+## UI/UX Guidelines
+
+### Global Chrome
+- **Navbar** is rendered by `navbarHtml()` in `projects.js` and used on every authenticated page. Do not create separate navbars.
+- **Orbit logo** (`navbar-brand`) is always a clickable `<a href="#/projects">` — never a `<span>`.
+- **User menu**: avatar button (`#nav-avatar-btn`) opens a `.user-dropdown` with Profile, Admin (if `user.isAdmin`), and Sign out. The standalone Sign out button does not appear outside the dropdown.
+- **Breadcrumb**: use `breadcrumbHtml(label?)` from `projects.js` for "← Projects" back navigation. Never use a bare `<button>` with an onclick for this purpose.
+- `setupNavbar()` must be called once per page render to wire all navbar interactions.
+
+### Interaction Patterns
+- **One entry point per concept**: each action (add task, add risk, add bucket) has exactly one trigger in the UI. Do not add shortcuts or duplicate buttons.
+- **Add-to-column buttons** use `.bucket-add-btn` at the bottom of each column — full-width, dashed border. The risk variant uses `.bucket-add-btn.add-risk` (red, via CSS class — never inline `style=`).
+- **Column add placeholder**: `+ Add Bucket` is a `.add-col` / `.add-col-btn` element — same 280px width as a bucket column, dashed border, at the far right of the board scroll.
+- **Destructive / edit actions on cards** are revealed on hover, not always visible. Use a `⋮` (`&#8942;`) button that opens a `.dropdown` menu, consistent with the bucket menu pattern (`showBucketMenu`).
+- **Dropdowns**: create with `document.createElement('div')`, class `dropdown`; items use `dropdown-item`; danger items add class `danger`. Dismiss on outside click: `setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 0)`.
+
+### Empty States
+- Board columns with no items show a `.col-empty-state` div with brief instructional text (e.g. "No risks yet. Click **+ Risk** to track one.").
+- The Risks column is always rendered, regardless of whether risks exist — the empty state is the signal, not the column's absence.
+- Projects grid uses `.empty-state` when no projects exist.
+
+### Toast Notifications
+- All user-initiated mutations (create, update, delete, toggle) must show a `toast(msg, type)` confirmation.
+- Types: `'success'`, `'error'`, `'info'`.
+- Favorite toggle: `'⭐ Marked as favorite'` / `'Removed from favorites'` (`'info'` type).
+- Use the API response to determine the new state before composing the message.
+
+### CSS Conventions
+- Never use inline `style=` for theme colours or brand colours — always use a CSS class.
+- Dark mode is controlled by `body[data-theme="dark"]`; use CSS custom properties (`--text`, `--bg`, `--bg2`, `--border`, `--red`, `--blue`, etc.) for all colours.
+- Interactive state changes (hover, focus) are handled in CSS via `transition`, not JavaScript.
+- Scoped styles: user-menu dropdown items use `.user-dropdown .dropdown-item` to avoid overriding the admin panel's `.dropdown-item` rules.
+- Back-link (`<a class="back-link">`) requires `text-decoration: none` when rendered as an `<a>` tag.
+
+### Component Locations
+| Component | Location |
+|---|---|
+| `navbarHtml()` | `client/js/pages/projects.js` |
+| `setupNavbar()` | `client/js/pages/projects.js` |
+| `breadcrumbHtml(label?)` | `client/js/pages/projects.js` |
+| `showProjectMenu(btn, id)` | `client/js/pages/projects.js` |
+| `showBucketMenu(btn, bucket)` | `client/js/pages/board.js` |
+| `toast(msg, type)` | `client/js/utils.js` |
+| `showModal(html)` / `hideModal()` | `client/js/utils.js` |
+| `escHtml(str)` | `client/js/utils.js` |
 
 ---
 

@@ -72,40 +72,22 @@ function renderGrid(grid, projects) {
         ${p.description ? `<div class="project-card-desc">${escHtml(p.description)}</div>` : ''}
         <div class="project-card-tags">${tagsHtml(p.tags)}</div>
       </div>
-      <div class="project-card-footer">
-        <button class="btn btn-sm btn-ghost edit-project" data-id="${p.id}">Edit</button>
-        <button class="btn btn-sm btn-danger delete-project" data-id="${p.id}">Delete</button>
-      </div>
+      <button class="project-card-menu-btn" data-id="${p.id}" title="Options" aria-label="Options">&#8942;</button>
     </div>
   `).join('');
 
   grid.querySelectorAll('.project-card').forEach(card => {
     card.addEventListener('click', (e) => {
-      if (e.target.closest('.project-card-footer')) return;
+      if (e.target.closest('.project-card-menu-btn') || e.target.closest('.favorite-star')) return;
       navigate(`/projects/${card.dataset.id}`);
     });
   });
 
-  grid.querySelectorAll('.edit-project').forEach(btn => {
+  grid.querySelectorAll('.project-card-menu-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const projects = await api.getProjects();
-      const project = projects.find(p => p.id == btn.dataset.id);
-      if (project) showProjectModal(project, loadProjects);
-    });
-  });
-
-  grid.querySelectorAll('.delete-project').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      if (!confirm('Delete this project? This cannot be undone.')) return;
-      try {
-        await api.deleteProject(btn.dataset.id);
-        toast('Project deleted', 'success');
-        loadProjects();
-      } catch (err) {
-        toast(err.message, 'error');
-      }
+      const projectId = btn.dataset.id;
+      showProjectMenu(btn, projectId);
     });
   });
 
@@ -113,13 +95,48 @@ function renderGrid(grid, projects) {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       try {
-        await api.toggleFavorite(btn.dataset.id);
+        const result = await api.toggleFavorite(btn.dataset.id);
+        toast(result.favorite ? '⭐ Marked as favorite' : 'Removed from favorites', 'info');
         loadProjects(document.getElementById('project-search')?.value || '');
       } catch (err) {
         toast(err.message, 'error');
       }
     });
   });
+}
+
+function showProjectMenu(btn, projectId) {
+  document.querySelectorAll('.dropdown').forEach(d => d.remove());
+  const menu = document.createElement('div');
+  menu.className = 'dropdown';
+  menu.innerHTML = `
+    <button class="dropdown-item" id="pm-edit">Edit</button>
+    <button class="dropdown-item danger" id="pm-delete">Delete</button>
+  `;
+  document.body.appendChild(menu);
+  const rect = btn.getBoundingClientRect();
+  menu.style.top = `${rect.bottom + window.scrollY + 4}px`;
+  menu.style.left = `${rect.right + window.scrollX - menu.offsetWidth}px`;
+
+  menu.querySelector('#pm-edit').onclick = async () => {
+    menu.remove();
+    const projects = await api.getProjects();
+    const project = projects.find(p => p.id == projectId);
+    if (project) showProjectModal(project, loadProjects);
+  };
+  menu.querySelector('#pm-delete').onclick = async () => {
+    menu.remove();
+    if (!confirm('Delete this project? This cannot be undone.')) return;
+    try {
+      await api.deleteProject(projectId);
+      toast('Project deleted', 'success');
+      loadProjects();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+
+  setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 0);
 }
 
 export function showProjectModal(project = null, onSuccess = null) {
@@ -136,7 +153,7 @@ export function showProjectModal(project = null, onSuccess = null) {
         <textarea class="form-control" id="p-desc">${escHtml(project?.description || '')}</textarea>
       </div>
       <div class="form-group">
-        <label>Background Picture</label>
+        <label>Image</label>
         ${project?.picture ? `
           <div style="margin-bottom:8px;position:relative">
             <img id="p-picture-preview" src="${escHtml(project.picture)}" style="width:100%;height:100px;object-fit:cover;border-radius:4px" />
@@ -152,7 +169,7 @@ export function showProjectModal(project = null, onSuccess = null) {
       <div id="p-error" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button type="button" class="btn btn-secondary" id="p-cancel">Cancel</button>
-        <button type="submit" class="btn btn-primary">${isEdit ? 'Save Changes' : 'Create Project'}</button>
+        <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Create Project'}</button>
       </div>
     </form>
   `;
@@ -217,37 +234,84 @@ function projectColor(id) {
   return colors[id % colors.length];
 }
 
+export function breadcrumbHtml(label = 'Projects') {
+  return `<a class="back-link" href="#/projects">&#8592; ${escHtml(label)}</a>`;
+}
+
 export function navbarHtml({ hideProfile = false } = {}) {
   const user = JSON.parse(localStorage.getItem('orbit_user') || '{}');
   const initial = (user.username || user.email || '?').charAt(0).toUpperCase();
   const avatarInner = user.profilePicture
     ? `<img src="${escHtml(user.profilePicture)}" alt="" />`
     : escHtml(initial);
-  const avatarEl = hideProfile
-    ? `<span class="navbar-avatar">${avatarInner}</span>`
-    : `<button class="navbar-avatar" id="nav-profile" title="Profile">${avatarInner}</button>`;
-  const adminLink = user.isAdmin
-    ? `<button class="nav-link" id="nav-admin" title="Admin Panel">Admin</button>`
+  const profileItem = hideProfile
+    ? ''
+    : `<button class="dropdown-item" id="nav-profile">Profile</button>`;
+  const adminItem = user.isAdmin
+    ? `<button class="dropdown-item" id="nav-admin">Admin</button>`
     : '';
   return `
     <nav class="navbar">
-      <span class="navbar-brand">
+      <a class="navbar-brand" href="#/projects">
         <img src="/icon-dark-512.png" alt="" class="navbar-logo-light" />
         <img src="/icon-light-512.png" alt="" class="navbar-logo-dark" />
         Orbit
-      </span>
+      </a>
       <div class="navbar-sep"></div>
       <span class="navbar-spacer"></span>
-      ${adminLink}
-      ${avatarEl}
-      <button class="nav-link" id="nav-logout">Sign out</button>
+      <button class="nav-icon-btn" id="nav-notifications" title="Notifications" aria-label="Notifications">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+      </button>
+      <div class="navbar-user-menu" id="navbar-user-menu">
+        <button class="navbar-avatar" id="nav-avatar-btn" title="Account" aria-haspopup="true" aria-expanded="false">${avatarInner}</button>
+        <div class="user-dropdown" id="user-dropdown" hidden>
+          ${profileItem}
+          ${adminItem}
+          <div class="dropdown-divider"></div>
+          <button class="dropdown-item dropdown-item-danger" id="nav-logout">Sign out</button>
+        </div>
+      </div>
     </nav>
   `;
 }
 
 export function setupNavbar() {
-  document.getElementById('nav-profile')?.addEventListener('click', () => navigate('/profile'));
-  document.getElementById('nav-admin')?.addEventListener('click', () => navigate('/admin'));
+  const avatarBtn = document.getElementById('nav-avatar-btn');
+  const dropdown = document.getElementById('user-dropdown');
+
+  if (avatarBtn && dropdown) {
+    avatarBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !dropdown.hidden;
+      dropdown.hidden = open;
+      avatarBtn.setAttribute('aria-expanded', String(!open));
+    });
+
+    const closeOnOutside = () => {
+      if (!document.body.contains(dropdown)) {
+        document.removeEventListener('click', closeOnOutside);
+        return;
+      }
+      dropdown.hidden = true;
+      avatarBtn.setAttribute('aria-expanded', 'false');
+    };
+    document.addEventListener('click', closeOnOutside);
+  }
+
+  document.getElementById('nav-notifications')?.addEventListener('click', () => {
+    import('../utils.js').then(({ toast }) => toast('No notifications', 'info'));
+  });
+  document.getElementById('nav-profile')?.addEventListener('click', () => {
+    if (dropdown) dropdown.hidden = true;
+    navigate('/profile');
+  });
+  document.getElementById('nav-admin')?.addEventListener('click', () => {
+    if (dropdown) dropdown.hidden = true;
+    navigate('/admin');
+  });
   document.getElementById('nav-logout')?.addEventListener('click', () => {
     localStorage.removeItem('orbit_user');
     document.cookie = 'orbit_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Strict';

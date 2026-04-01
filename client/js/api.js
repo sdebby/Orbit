@@ -101,6 +101,12 @@ export const api = {
   adminBulkDeleteUsers: (ids) => request('POST', '/admin/users/bulk-delete', { ids }),
   adminResetPassword: (id) => request('POST', `/admin/users/${id}/reset-password`),
 
+  // Checklists
+  getChecklists: (taskId) => request('GET', `/tasks/${taskId}/checklists`),
+  createChecklist: (taskId, text) => request('POST', `/tasks/${taskId}/checklists`, { text }),
+  updateChecklist: (id, data) => request('PUT', `/checklists/${id}`, data),
+  deleteChecklist: (id) => request('DELETE', `/checklists/${id}`),
+
   // Risks
   getRisks: (projectId) => request('GET', `/projects/${projectId}/risks`),
   createRisk: (projectId, data) => data instanceof FormData

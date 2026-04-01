@@ -8,7 +8,7 @@ A personal project management web app inspired by Trello and Microsoft Planner. 
 
 - **Projects** — create and manage projects with cover images, tags, and favorites; favorite projects are pinned to the top
 - **Kanban boards** — unlimited buckets per project with custom header colors, inline storyboard notes, and drag-and-drop column reordering
-- **Tasks** — priority levels (Low / Medium / High), due dates, picture attachments, tags, and completion tracking; drag-and-drop tasks between buckets; done tasks collapse into a "✓ N Done" section per column
+- **Tasks** — priority levels (Low / Medium / High), due dates, picture attachments, tags, and completion tracking; drag-and-drop tasks between buckets; done tasks collapse into a "✓ N Done" section per column; checklist items (sub-tasks) per task with per-item completion and a progress badge on the card; soft ding sound and shine animation on completion; confetti celebration on the 10th completed task
 - **Risk management** — severity / probability / detectability scoring with automatic RPN calculation (S × P × D), solution tracking, and status (Open / Resolved); risks shown in a dedicated column on the board
 - **Authentication** — JWT-based login with password visibility toggle, registration with email verification (link expires in 30 minutes), forgot/reset password via email (SMTP); all form validation uses in-app toast notifications (no browser tooltips)
 - **Profile** — display name, avatar upload, password change, dark / light mode toggle, delete account
@@ -70,6 +70,7 @@ Orbit/
     │   ├── projects.js
     │   ├── buckets.js
     │   ├── tasks.js
+    │   ├── checklists.js
     │   ├── risks.js
     │   └── profile.js
     ├── middleware/
@@ -215,6 +216,7 @@ Existing accounts created before this feature was introduced are automatically m
 | Projects | `GET /POST /api/projects` · `GET /PUT /DELETE /api/projects/:id` · `PUT /api/projects/:id/favorite` |
 | Buckets | `GET /POST /api/projects/:id/buckets` · `PUT /DELETE /api/buckets/:id` |
 | Tasks | `GET /POST /api/buckets/:id/tasks` · `GET /PUT /DELETE /api/tasks/:id` |
+| Checklists | `GET /POST /api/tasks/:id/checklists` · `PUT /DELETE /api/checklists/:id` |
 | Risks | `GET /POST /api/projects/:id/risks` · `GET /PUT /DELETE /api/risks/:id` |
 
 All authenticated endpoints require `Authorization: Bearer <token>` header. File uploads are authenticated via HttpOnly `orbit_token` cookie.

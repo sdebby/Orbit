@@ -1,7 +1,7 @@
 import { api } from '../api.js';
 import { toast, escHtml, getInitials } from '../utils.js';
 import { navigate } from '../router.js';
-import { navbarHtml, setupNavbar } from './projects.js';
+import { navbarHtml, setupNavbar, breadcrumbHtml } from './projects.js';
 
 async function importFromXml(xmlText, statusEl) {
   const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
@@ -93,7 +93,7 @@ export async function renderProfile(app) {
       <div class="page-content" style="overflow-y:auto">
         <div class="profile-page">
 
-          <button class="back-link" id="profile-back-btn">&#8592; Back to Projects</button>
+          ${breadcrumbHtml()}
 
           <!-- Profile card -->
           <div class="profile-hero">
@@ -226,7 +226,6 @@ export async function renderProfile(app) {
   `;
 
   setupNavbar();
-  document.getElementById('profile-back-btn').onclick = () => navigate('/projects');
 
   document.getElementById('dark-mode-toggle').addEventListener('change', (e) => {
     const theme = e.target.checked ? 'dark' : 'light';

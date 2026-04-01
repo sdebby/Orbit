@@ -8,7 +8,8 @@ export function toast(msg, type = 'info') {
 
 // SECURITY: all user-controlled values in `html` MUST be escaped with escHtml() before passing in.
 export function showModal(html, onClose) {
-  document.getElementById('modal-content').innerHTML = html;
+  const content = document.getElementById('modal-content');
+  content.innerHTML = html;
   document.getElementById('modal-overlay').classList.remove('hidden');
   const closeBtn = document.getElementById('modal-close');
   const overlay = document.getElementById('modal-overlay');
@@ -18,6 +19,8 @@ export function showModal(html, onClose) {
   };
   closeBtn.onclick = close;
   overlay.onclick = (e) => { if (e.target === overlay) close(); };
+  const firstField = content.querySelector('input:not([type=hidden]):not([type=file]), textarea, select');
+  if (firstField) requestAnimationFrame(() => firstField.focus());
 }
 
 export function hideModal() {

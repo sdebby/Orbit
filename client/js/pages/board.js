@@ -1,7 +1,7 @@
 import { api } from '../api.js';
 import { toast, showModal, hideModal, tagsInput, tagsHtml, escHtml, formatDate, isOverdue, rpnClass } from '../utils.js';
 import { navigate } from '../router.js';
-import { navbarHtml, setupNavbar, showProjectModal } from './projects.js';
+import { navbarHtml, setupNavbar, showProjectModal, breadcrumbHtml } from './projects.js';
 
 function playDing() {
   try {
@@ -67,7 +67,7 @@ export async function renderBoard(app, params) {
       ${navbarHtml()}
       <div class="board-container" id="board-container">
         <div class="board-header">
-          <button class="back-link" id="back-btn">&#8592; Projects</button>
+          ${breadcrumbHtml()}
           <h2 id="board-title">Loading…</h2>
           <button class="btn btn-secondary btn-sm" id="edit-project-btn" style="display:none">&#9998; Edit Project</button>
           <span class="navbar-spacer"></span>
@@ -81,7 +81,6 @@ export async function renderBoard(app, params) {
   `;
 
   setupNavbar();
-  document.getElementById('back-btn').onclick = () => navigate('/projects');
 
   let project, buckets, itemsByBucket = {}, projectRisks = [];
   let searchQ = '';
@@ -98,17 +97,16 @@ export async function renderBoard(app, params) {
         editBtn.onclick = () => showProjectModal(project, loadAll);
       }
 
-      // Apply project picture as dimmed background
+      // Apply project picture as a banner on the board header only
       // Only allow /uploads/ paths to prevent CSS injection
       const container = document.getElementById('board-container');
+      const header = container.querySelector('.board-header');
       const safePicture = project.picture && /^\/uploads\/[\w\-\.]+$/.test(project.picture) ? project.picture : null;
       if (safePicture) {
-        container.style.backgroundImage = `url('${safePicture}')`;
-        container.style.backgroundSize = 'cover';
-        container.style.backgroundPosition = 'center';
+        header.style.backgroundImage = `url('${safePicture}')`;
         container.classList.add('has-bg');
       } else {
-        container.style.backgroundImage = '';
+        header.style.backgroundImage = '';
         container.classList.remove('has-bg');
       }
 
@@ -130,34 +128,29 @@ export async function renderBoard(app, params) {
     scroll.innerHTML = '';
 
     const filteredProjectRisks = filterItems(projectRisks);
-    const riskCol = filteredProjectRisks.length > 0
-      ? createProjectRiskCol(filteredProjectRisks)
-      : null;
+    const riskCol = createProjectRiskCol(filteredProjectRisks);
 
     // Insert columns in saved order (risks col position persisted per project)
-    const savedRiskPos = riskCol
-      ? parseInt(localStorage.getItem(`orbit_risks_pos_${projectId}`), 10)
-      : NaN;
+    const savedRiskPos = parseInt(localStorage.getItem(`orbit_risks_pos_${projectId}`), 10);
 
     buckets.forEach((bucket, i) => {
-      if (riskCol && i === savedRiskPos) scroll.appendChild(riskCol);
+      if (!isNaN(savedRiskPos) && i === savedRiskPos) scroll.appendChild(riskCol);
       scroll.appendChild(createBucketCol(bucket));
     });
     // Append risk col at end if not yet inserted (no saved pos, or pos >= buckets.length)
-    if (riskCol && (isNaN(savedRiskPos) || savedRiskPos >= buckets.length)) {
+    if (isNaN(savedRiskPos) || savedRiskPos >= buckets.length) {
       scroll.appendChild(riskCol);
     }
 
-    // Stacked add buttons
-    const addWrap = document.createElement('div');
-    addWrap.className = 'add-col-btns';
-    addWrap.innerHTML = `
-      <button class="add-bucket-btn">+ Add Bucket</button>
-      <button class="add-risk-col-btn">+ Add Risk</button>
-    `;
-    addWrap.querySelector('.add-bucket-btn').onclick = () => showBucketModal();
-    addWrap.querySelector('.add-risk-col-btn').onclick = () => showRiskModal();
-    scroll.appendChild(addWrap);
+    // Add Bucket — full-width board column
+    const addBucketCol = document.createElement('div');
+    addBucketCol.className = 'add-col';
+    const addBucketBtn = document.createElement('button');
+    addBucketBtn.className = 'add-col-btn';
+    addBucketBtn.textContent = '+ Add Bucket';
+    addBucketBtn.onclick = () => showBucketModal();
+    addBucketCol.appendChild(addBucketBtn);
+    scroll.appendChild(addBucketCol);
 
     makeBoardSortable(scroll);
     makeTasksDraggable(scroll);
@@ -355,7 +348,9 @@ export async function renderBoard(app, params) {
       </div>
 
       <div class="bucket-storyboard">
+        <span class="storyboard-edit-icon" aria-hidden="true">&#9998;</span>
         <textarea class="storyboard-textarea" placeholder="Storyboard…" rows="3">${escHtml(bucket.description || '')}</textarea>
+        <span class="storyboard-saved" aria-live="polite">Saved &#10003;</span>
       </div>
 
       <div class="bucket-section tasks-section">
@@ -388,12 +383,15 @@ export async function renderBoard(app, params) {
     // Storyboard inline save on blur
     const storyboard = col.querySelector('.storyboard-textarea');
     let storyboardOriginal = bucket.description || '';
+    const storyboardWrap = col.querySelector('.bucket-storyboard');
     storyboard.addEventListener('blur', async () => {
       const val = storyboard.value;
       if (val === storyboardOriginal) return;
       try {
         await api.updateBucket(bucket.id, { description: val });
         storyboardOriginal = val;
+        storyboardWrap.classList.add('just-saved');
+        setTimeout(() => storyboardWrap.classList.remove('just-saved'), 1800);
       } catch {
         storyboard.value = storyboardOriginal;
       }
@@ -454,15 +452,19 @@ export async function renderBoard(app, params) {
     const col = document.createElement('div');
     col.className = 'bucket-col risk-col';
 
+    const bodyContent = risks.length > 0
+      ? risks.map(r => riskCardHtml(r)).join('')
+      : `<div class="col-empty-state">No risks yet.<br>Click <b>+ Risk</b> to track one.</div>`;
+
     col.innerHTML = `
       <div class="bucket-header risk-col-header">
         <span class="bucket-title">Risks</span>
         <span class="risk-col-count">${risks.length}</span>
       </div>
       <div class="bucket-items" id="project-risks">
-        ${risks.map(r => riskCardHtml(r)).join('')}
+        ${bodyContent}
       </div>
-      <button class="bucket-add-btn add-risk" style="border-color:var(--red);color:var(--red);">+ Risk</button>
+      <button class="bucket-add-btn add-risk">+ Risk</button>
     `;
 
     col.querySelectorAll('#project-risks .risk-card').forEach(card => {
@@ -512,6 +514,7 @@ export async function renderBoard(app, params) {
             : `<span class="priority ${escHtml(t.priority)}">${escHtml(t.priority)}</span>
                ${t.due_date ? `<span class="due-date ${overdue ? 'overdue' : ''}">${formatDate(t.due_date)}</span>` : ''}`
           }
+          ${t.checklist_total > 0 ? `<span class="checklist-progress ${t.checklist_done === t.checklist_total ? 'all-done' : ''}">&#9632; ${t.checklist_done}/${t.checklist_total}</span>` : ''}
           ${tagsHtml(t.tags)}
         </div>
       </div>
@@ -564,7 +567,7 @@ export async function renderBoard(app, params) {
     `).join('');
 
     showModal(`
-      <h2>${isEdit ? 'Edit Bucket' : 'Add Bucket'}</h2>
+      <h2>${isEdit ? 'Edit Bucket' : 'New Bucket'}</h2>
       <form id="bucket-form">
         <div class="form-group">
           <label>Title *</label>
@@ -579,10 +582,9 @@ export async function renderBoard(app, params) {
           <div class="color-swatches">${swatchesHtml}</div>
         </div>
         <div id="b-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
-        ${isEdit ? `<button type="button" class="btn btn-danger btn-sm" id="delete-bucket-btn" style="margin-bottom:12px">Delete Bucket</button>` : ''}
         <div style="display:flex;gap:8px;justify-content:flex-end">
           <button type="button" class="btn btn-secondary" id="b-cancel">Cancel</button>
-          <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Add Bucket'}</button>
+          <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Create Bucket'}</button>
         </div>
       </form>
     `);
@@ -597,16 +599,6 @@ export async function renderBoard(app, params) {
         selectedColor = swatch.dataset.color;
       });
     });
-
-    if (isEdit) {
-      document.getElementById('delete-bucket-btn').onclick = async () => {
-        if (!confirm('Delete this bucket and all its tasks/risks?')) return;
-        await api.deleteBucket(bucket.id);
-        toast('Bucket deleted', 'success');
-        hideModal();
-        await loadAll();
-      };
-    }
 
     document.getElementById('bucket-form').onsubmit = async (e) => {
       e.preventDefault();
@@ -624,7 +616,7 @@ export async function renderBoard(app, params) {
           toast('Bucket updated', 'success');
         } else {
           await api.createBucket(projectId, data);
-          toast('Bucket added', 'success');
+          toast('Bucket created', 'success');
         }
         hideModal();
         await loadAll();
@@ -640,7 +632,7 @@ export async function renderBoard(app, params) {
   function showTaskModal(bucketId, task = null) {
     const isEdit = !!task;
     showModal(`
-      <h2>${isEdit ? 'Edit Task' : 'Add Task'}</h2>
+      <h2>${isEdit ? 'Edit Task' : 'New Task'}</h2>
       <form id="task-form">
         <div class="form-group">
           <label>Description *</label>
@@ -659,7 +651,7 @@ export async function renderBoard(app, params) {
           </div>
         </div>
         <div class="form-group">
-          <label>Picture</label>
+          <label>Image</label>
           ${task?.picture ? `<div style="margin-bottom:8px"><img src="${escHtml(task.picture)}" style="max-width:100%;max-height:140px;border-radius:4px;object-fit:cover" /></div>` : ''}
           <input type="file" id="t-picture" accept="image/*" class="form-control" style="padding:4px" />
         </div>
@@ -667,15 +659,105 @@ export async function renderBoard(app, params) {
           <label>Tags</label>
           <div id="t-tags-input"></div>
         </div>
+        <div class="form-group checklist-section">
+          <label>Checklist</label>
+          <div id="t-checklists">${isEdit ? '<div class="spinner" style="width:16px;height:16px;margin:4px 0"></div>' : ''}</div>
+          <div class="checklist-add-row">
+            <input type="text" id="t-new-checklist" class="form-control" placeholder="Add an item…" maxlength="500" />
+            <button type="button" id="t-add-checklist" class="btn btn-secondary btn-sm">Add</button>
+          </div>
+        </div>
         <div id="t-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end">
           <button type="button" class="btn btn-secondary" id="t-cancel">Cancel</button>
-          <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Add Task'}</button>
+          <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Create Task'}</button>
         </div>
       </form>
     `);
     const tagsWidget = tagsInput(document.getElementById('t-tags-input'), task?.tags || []);
     document.getElementById('t-cancel').onclick = hideModal;
+
+    // ---- Checklist logic ----
+    const checklistContainer = document.getElementById('t-checklists');
+    // Each entry: { id?: number, text: string, checked: boolean }
+    let checklistItems = [];
+
+    function renderChecklistItems() {
+      if (!checklistItems.length) {
+        checklistContainer.innerHTML = '<p class="text-sm text-muted" style="margin:4px 0 8px">No items yet.</p>';
+        return;
+      }
+      checklistContainer.innerHTML = checklistItems.map((item, idx) => `
+        <div class="checklist-item" data-idx="${idx}">
+          <button type="button" class="checklist-check-btn ${item.checked ? 'checked' : ''}" title="${item.checked ? 'Mark incomplete' : 'Mark done'}">
+            ${item.checked ? '&#10003;' : ''}
+          </button>
+          <span class="checklist-text ${item.checked ? 'done' : ''}">${escHtml(item.text)}</span>
+          <button type="button" class="checklist-delete-btn" title="Delete">&#10005;</button>
+        </div>
+      `).join('');
+
+      checklistContainer.querySelectorAll('.checklist-item').forEach(row => {
+        const idx = parseInt(row.dataset.idx, 10);
+        row.querySelector('.checklist-check-btn').onclick = async () => {
+          const item = checklistItems[idx];
+          if (!item) return;
+          if (isEdit && item.id) {
+            try { await api.updateChecklist(item.id, { checked: !item.checked }); }
+            catch { toast('Failed to update item', 'error'); return; }
+          }
+          item.checked = !item.checked;
+          renderChecklistItems();
+        };
+        row.querySelector('.checklist-delete-btn').onclick = async () => {
+          const item = checklistItems[idx];
+          if (!item) return;
+          if (isEdit && item.id) {
+            try { await api.deleteChecklist(item.id); }
+            catch { toast('Failed to delete item', 'error'); return; }
+          }
+          checklistItems.splice(idx, 1);
+          renderChecklistItems();
+        };
+      });
+    }
+
+    // In edit mode, load existing items from API
+    if (isEdit) {
+      api.getChecklists(task.id).then(items => {
+        checklistItems = items.map(i => ({ id: i.id, text: i.text, checked: !!i.checked }));
+        renderChecklistItems();
+      }).catch(() => {
+        checklistContainer.innerHTML = '<p class="text-sm" style="color:var(--red)">Failed to load checklist.</p>';
+      });
+    }
+
+    async function addChecklistItem() {
+      const input = document.getElementById('t-new-checklist');
+      const text = input.value.trim();
+      if (!text) return;
+      if (isEdit) {
+        // Save immediately when editing an existing task
+        try {
+          const item = await api.createChecklist(task.id, text);
+          checklistItems.push({ id: item.id, text: item.text, checked: !!item.checked });
+          renderChecklistItems();
+          input.value = '';
+          input.focus();
+        } catch (err) { toast(err.message, 'error'); }
+      } else {
+        // Queue locally — will be saved after the task is created
+        checklistItems.push({ text, checked: false });
+        renderChecklistItems();
+        input.value = '';
+        input.focus();
+      }
+    }
+
+    document.getElementById('t-add-checklist').onclick = addChecklistItem;
+    document.getElementById('t-new-checklist').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addChecklistItem(); }
+    });
 
     document.getElementById('task-form').onsubmit = async (e) => {
       e.preventDefault();
@@ -694,8 +776,12 @@ export async function renderBoard(app, params) {
           await api.updateTask(task.id, fd);
           toast('Task updated', 'success');
         } else {
-          await api.createTask(bucketId, fd);
-          toast('Task added', 'success');
+          const newTask = await api.createTask(bucketId, fd);
+          // Save any queued checklist items
+          if (checklistItems.length) {
+            await Promise.all(checklistItems.map(item => api.createChecklist(newTask.id, item.text)));
+          }
+          toast('Task created', 'success');
         }
         hideModal();
         await loadAll();
@@ -712,7 +798,7 @@ export async function renderBoard(app, params) {
     const isEdit = !!risk;
     const sv = risk?.severity || 5, pr = risk?.probability || 5, de = risk?.detectability || 5;
     showModal(`
-      <h2>${isEdit ? 'Edit Risk' : 'Add Risk'}</h2>
+      <h2>${isEdit ? 'Edit Risk' : 'New Risk'}</h2>
       <form id="risk-form">
         <div class="form-group">
           <label>Description *</label>
@@ -752,7 +838,7 @@ export async function renderBoard(app, params) {
           <textarea class="form-control" id="r-solution">${escHtml(risk?.solution_description || '')}</textarea>
         </div>
         <div class="form-group">
-          <label>Photo</label>
+          <label>Image</label>
           ${risk?.photos?.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${risk.photos.map(p => `<img src="${escHtml(p)}" style="height:70px;border-radius:4px;object-fit:cover" />`).join('')}</div>` : ''}
           <input type="file" id="r-photo" accept="image/*" class="form-control" style="padding:4px" />
         </div>
@@ -763,7 +849,7 @@ export async function renderBoard(app, params) {
         <div id="r-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end">
           <button type="button" class="btn btn-secondary" id="r-cancel">Cancel</button>
-          <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Add Risk'}</button>
+          <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Create Risk'}</button>
         </div>
       </form>
     `);
@@ -805,7 +891,7 @@ export async function renderBoard(app, params) {
           toast('Risk updated', 'success');
         } else {
           await api.createRisk(projectId, fd);
-          toast('Risk added', 'success');
+          toast('Risk created', 'success');
         }
         hideModal();
         await loadAll();
