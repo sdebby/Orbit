@@ -54,6 +54,36 @@ router.get('/users', (req, res) => {
   res.json({ users: filtered, total, page, totalPages: Math.ceil(total / limit) });
 });
 
+// GET /api/admin/users/:id — user detail + activity counts
+router.get('/users/:id', (req, res) => {
+  const targetId = parseInt(req.params.id);
+  const user = db.prepare(
+    'SELECT id, email, username, profile_picture, created_at, last_active, email_verified FROM users WHERE id = ?'
+  ).get(targetId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const projectCount = db.prepare('SELECT COUNT(*) as c FROM projects WHERE user_id = ?').get(targetId).c;
+  const taskCount = db.prepare(
+    'SELECT COUNT(*) as c FROM tasks t JOIN buckets b ON t.bucket_id = b.id JOIN projects p ON b.project_id = p.id WHERE p.user_id = ?'
+  ).get(targetId).c;
+  const riskCount = db.prepare(
+    'SELECT COUNT(*) as c FROM risks WHERE project_id IN (SELECT id FROM projects WHERE user_id = ?)'
+  ).get(targetId).c;
+
+  res.json({
+    id: user.id,
+    email: decryptEmail(user.email),
+    username: user.username,
+    profilePicture: user.profile_picture,
+    createdAt: user.created_at,
+    lastActive: user.last_active,
+    emailVerified: user.email_verified,
+    projectCount,
+    taskCount,
+    riskCount,
+  });
+});
+
 // DELETE /api/admin/users/:id
 router.delete('/users/:id', (req, res) => {
   const targetId = parseInt(req.params.id);

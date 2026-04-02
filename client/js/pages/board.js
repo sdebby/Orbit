@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { toast, showModal, hideModal, tagsInput, tagsHtml, escHtml, formatDate, isOverdue, rpnClass } from '../utils.js';
+import { toast, showModal, hideModal, tagsInput, tagsHtml, escHtml, formatDate, isOverdue, dueDateClass, rpnClass } from '../utils.js';
 import { navigate } from '../router.js';
 import { navbarHtml, setupNavbar, showProjectModal, breadcrumbHtml } from './projects.js';
 
@@ -116,6 +116,17 @@ export async function renderBoard(app, params) {
       ]);
       projectRisks = risks;
       buckets.forEach((b, i) => { itemsByBucket[b.id] = { tasks: taskResults[i] }; });
+
+      // Pre-load checklists for all tasks that have items
+      const allTasks = buckets.flatMap(b => itemsByBucket[b.id].tasks);
+      const tasksWithChecklists = allTasks.filter(t => t.checklist_total > 0);
+      if (tasksWithChecklists.length) {
+        const clResults = await Promise.all(
+          tasksWithChecklists.map(t => api.getChecklists(t.id).catch(() => []))
+        );
+        tasksWithChecklists.forEach((t, i) => { t.checklistItems = clResults[i]; });
+      }
+
       renderBoard();
     } catch (err) {
       document.getElementById('board-scroll').innerHTML = `<p style="color:var(--red);padding:20px">${escHtml(err.message)}</p>`;
@@ -441,11 +452,82 @@ export async function renderBoard(app, params) {
           toast(err.message, 'error');
         }
       });
+
+      // Mount inline checklists for this card
+      const task = tasks.find(t => t.id == card.dataset.id);
+      if (task && task.checklistItems) mountCardChecklists(card, task);
     });
 
     col.querySelector('.add-task').onclick = () => showTaskModal(bucket.id);
 
     return col;
+  }
+
+  function mountCardChecklists(card, task) {
+    const details = card.querySelector('.card-checklist-section');
+    if (!details) return;
+    const body = details.querySelector('.card-checklist-body');
+
+    // Prevent summary click from opening the task modal
+    details.querySelector('.card-checklist-summary')
+      .addEventListener('click', e => e.stopPropagation());
+
+    function renderBody() {
+      const active = task.checklistItems.filter(i => !i.checked);
+      const done = task.checklistItems.filter(i => i.checked);
+      body.innerHTML = '';
+
+      if (!active.length && !done.length) return;
+
+      if (active.length) {
+        const wrap = document.createElement('div');
+        wrap.className = 'card-cl-active';
+        active.forEach(item => wrap.appendChild(makeRow(item)));
+        body.appendChild(wrap);
+      }
+
+      if (done.length) {
+        const doneDetails = document.createElement('details');
+        doneDetails.className = 'card-cl-done-section';
+        const summary = document.createElement('summary');
+        summary.className = 'card-cl-done-summary';
+        summary.textContent = `\u2713 ${done.length} Done`;
+        summary.addEventListener('click', e => e.stopPropagation());
+        doneDetails.appendChild(summary);
+        const wrap = document.createElement('div');
+        wrap.className = 'card-cl-done-items';
+        done.forEach(item => wrap.appendChild(makeRow(item)));
+        doneDetails.appendChild(wrap);
+        body.appendChild(doneDetails);
+      }
+    }
+
+    function makeRow(item) {
+      const row = document.createElement('div');
+      row.className = `card-cl-item${item.checked ? ' done' : ''}`;
+      row.innerHTML = `
+        <button class="card-cl-check-btn${item.checked ? ' checked' : ''}" title="${item.checked ? 'Mark incomplete' : 'Mark done'}">${item.checked ? '&#10003;' : ''}</button>
+        <span class="card-cl-text">${escHtml(item.text)}</span>
+      `;
+      row.querySelector('.card-cl-check-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const newChecked = !item.checked;
+        try {
+          await api.updateChecklist(item.id, { checked: newChecked });
+          item.checked = newChecked;
+          task.checklist_done = task.checklistItems.filter(i => i.checked).length;
+          const badge = details.querySelector('.checklist-progress');
+          if (badge) {
+            badge.textContent = `${task.checklist_done}/${task.checklist_total}`;
+            badge.className = `checklist-progress${task.checklist_done === task.checklist_total ? ' all-done' : ''}`;
+          }
+          renderBody();
+        } catch { toast('Failed to update checklist', 'error'); }
+      });
+      return row;
+    }
+
+    renderBody();
   }
 
   function createProjectRiskCol(risks) {
@@ -491,30 +573,34 @@ export async function renderBoard(app, params) {
   }
 
   function taskCardHtml(t) {
-    const overdue = isOverdue(t.due_date);
     const doneDate = t.completed_at
       ? formatDate(new Date(t.completed_at * 1000).toISOString().split('T')[0])
       : null;
+    const ddClass = t.completed_at ? '' : dueDateClass(t.due_date);
     return `
       <div class="card task-card ${t.completed_at ? 'task-done' : ''}" data-id="${t.id}">
+        ${t.picture ? `<img class="card-thumb" src="${escHtml(t.picture)}" />` : ''}
         <div class="card-actions">
           ${!t.completed_at ? `<button class="card-action-btn card-edit-btn" title="Edit">&#9998;</button>` : ''}
           <button class="card-action-btn card-delete-btn" title="Delete">&#128465;</button>
         </div>
-        ${t.picture ? `<img src="${escHtml(t.picture)}" style="width:100%;height:80px;object-fit:cover;border-radius:4px;margin-bottom:6px" />` : ''}
         <div class="task-body">
           <button class="task-check-btn ${t.completed_at ? 'checked' : ''}" title="${t.completed_at ? 'Mark as incomplete' : 'Mark as done'}">
             ${t.completed_at ? '&#10003;' : ''}
           </button>
           <div class="card-description">${escHtml(t.description)}</div>
         </div>
+        ${t.checklist_total > 0 ? `
+          <details class="card-checklist-section" data-task-id="${t.id}">
+            <summary class="card-checklist-summary">
+              <span class="checklist-progress ${t.checklist_done === t.checklist_total ? 'all-done' : ''}">${t.checklist_done}/${t.checklist_total}</span>
+            </summary>
+            <div class="card-checklist-body"></div>
+          </details>
+        ` : ''}
         <div class="card-footer">
-          ${doneDate
-            ? `<span class="task-done-date">&#10003; Done ${doneDate}</span>`
-            : `<span class="priority ${escHtml(t.priority)}">${escHtml(t.priority)}</span>
-               ${t.due_date ? `<span class="due-date ${overdue ? 'overdue' : ''}">${formatDate(t.due_date)}</span>` : ''}`
-          }
-          ${t.checklist_total > 0 ? `<span class="checklist-progress ${t.checklist_done === t.checklist_total ? 'all-done' : ''}">&#9632; ${t.checklist_done}/${t.checklist_total}</span>` : ''}
+          ${doneDate ? `<span class="task-done-date">&#10003; Done ${doneDate}</span>` : `<span class="priority ${escHtml(t.priority)}">${escHtml(t.priority)}</span>`}
+          ${t.due_date ? `<span class="due-date ${ddClass}">${formatDate(t.due_date)}</span>` : ''}
           ${tagsHtml(t.tags)}
         </div>
       </div>

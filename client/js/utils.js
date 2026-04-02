@@ -38,6 +38,17 @@ export function isOverdue(dateStr) {
   return new Date(dateStr) < new Date();
 }
 
+export function dueDateClass(dateStr) {
+  if (!dateStr) return '';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const due = new Date(y, m - 1, d);
+  if (due < today) return 'overdue';
+  if ((due - today) / 86400000 <= 2) return 'due-soon';
+  return '';
+}
+
 export function rpnClass(rpn) {
   if (rpn <= 100) return 'low';
   if (rpn <= 500) return 'medium';

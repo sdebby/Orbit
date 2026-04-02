@@ -49,11 +49,23 @@ export async function renderAdmin(app) {
         </div>
       </div>
     </div>
+    <div class="admin-drawer-backdrop" id="admin-drawer-backdrop"></div>
+    <aside class="admin-drawer" id="admin-drawer" aria-label="User details">
+      <button class="admin-drawer-close" id="admin-drawer-close" title="Close">&#10005;</button>
+      <div class="admin-drawer-content" id="admin-drawer-content"></div>
+    </aside>
   `;
 
   setupNavbar();
   loadStats();
   loadUsers();
+
+  document.getElementById('admin-drawer-close').addEventListener('click', closeDrawer);
+  document.getElementById('admin-drawer-backdrop').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', function onEsc(e) {
+    if (e.key === 'Escape') closeDrawer();
+    if (!document.getElementById('admin-drawer')) document.removeEventListener('keydown', onEsc);
+  });
 
   statsInterval = setInterval(loadStats, 30000);
 
@@ -94,7 +106,7 @@ async function loadStats() {
         <div class="admin-stat-number">${s.totalUsers}</div>
         <div class="admin-stat-label">Total Users</div>
       </div>
-      <div class="admin-stat-card accent">
+      <div class="admin-stat-card">
         <div class="admin-stat-number">${s.onlineNow}</div>
         <div class="admin-stat-label">Online Now</div>
       </div>
@@ -180,10 +192,11 @@ function renderUsersTable(el, users) {
               <td>${formatRelative(u.lastActive)}</td>
               <td>${u.emailVerified ? '<span class="admin-verified">&#10003;</span>' : '<span class="admin-unverified">&#10007;</span>'}</td>
               <td class="admin-actions">
-                ${isSelf ? '' : `
-                  <button class="btn btn-sm btn-outline admin-reset-btn" data-id="${u.id}" data-email="${escHtml(u.email || '')}">Send Reset Email</button>
-                  <button class="btn btn-sm btn-danger admin-delete-btn" data-id="${u.id}" data-email="${escHtml(u.email || '')}">Delete</button>
-                `}
+                ${isSelf
+                  ? `<span class="admin-self-lock">&#128274; Your account</span>`
+                  : `<button class="btn btn-sm btn-outline admin-reset-btn" data-id="${u.id}" data-email="${escHtml(u.email || '')}">Send Reset Email</button>
+                     <button class="btn btn-sm btn-danger admin-delete-btn" data-id="${u.id}" data-email="${escHtml(u.email || '')}">Delete</button>`
+                }
               </td>
             </tr>
           `;
@@ -221,6 +234,16 @@ function renderUsersTable(el, users) {
 
   el.querySelectorAll('.admin-delete-btn').forEach(btn => {
     btn.addEventListener('click', () => deleteUser(btn.dataset.id, btn.dataset.email));
+  });
+
+  // Row click → user detail drawer (skip clicks on checkboxes, buttons, or the cb column)
+  el.querySelectorAll('tbody tr').forEach((tr, i) => {
+    const user = users[i];
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', (e) => {
+      if (e.target.closest('button, input, .admin-cb-col')) return;
+      openDrawer(user);
+    });
   });
 
   updateBulkBar();
@@ -266,6 +289,77 @@ async function deleteUser(userId, email) {
     loadUsers(document.getElementById('admin-search')?.value || '');
   } catch (err) {
     toast(err.message, 'error');
+  }
+}
+
+function closeDrawer() {
+  document.getElementById('admin-drawer')?.classList.remove('open');
+  document.getElementById('admin-drawer-backdrop')?.classList.remove('open');
+}
+
+async function openDrawer(user) {
+  const drawer = document.getElementById('admin-drawer');
+  const backdrop = document.getElementById('admin-drawer-backdrop');
+  const content = document.getElementById('admin-drawer-content');
+  if (!drawer) return;
+
+  const currentUser = JSON.parse(localStorage.getItem('orbit_user') || '{}');
+  const isSelf = user.id === currentUser.userId;
+  const initial = (user.username || user.email || '?').charAt(0).toUpperCase();
+  const avatar = user.profilePicture && /^\/uploads\/[\w\-\.]+$/.test(user.profilePicture)
+    ? `<img src="${escHtml(user.profilePicture)}" class="admin-drawer-avatar" />`
+    : `<span class="admin-drawer-avatar admin-drawer-avatar-initial">${escHtml(initial)}</span>`;
+
+  content.innerHTML = `
+    <div class="admin-drawer-hero">
+      ${avatar}
+      <div class="admin-drawer-hero-info">
+        <div class="admin-drawer-name">${escHtml(user.username || '—')}${isSelf ? ' <span class="admin-you-badge">you</span>' : ''}</div>
+        <div class="admin-drawer-email">${escHtml(user.email || '')}</div>
+      </div>
+    </div>
+    <dl class="admin-drawer-details">
+      <dt>Registered</dt><dd>${formatDateShort(user.createdAt)}</dd>
+      <dt>Last Active</dt><dd>${formatRelative(user.lastActive)}</dd>
+      <dt>Email Verified</dt><dd>${user.emailVerified ? '<span class="admin-verified">&#10003; Yes</span>' : '<span class="admin-unverified">&#10007; No</span>'}</dd>
+      <dt>Projects</dt><dd id="drawer-projects"><span class="spinner" style="width:12px;height:12px"></span></dd>
+      <dt>Tasks</dt><dd id="drawer-tasks"><span class="spinner" style="width:12px;height:12px"></span></dd>
+      <dt>Risks</dt><dd id="drawer-risks"><span class="spinner" style="width:12px;height:12px"></span></dd>
+    </dl>
+    ${isSelf ? `<p class="admin-drawer-self-note">&#128274; You cannot modify your own account.</p>` : `
+    <div class="admin-drawer-actions">
+      <button class="btn btn-outline btn-sm" id="drawer-reset-btn">Send Reset Email</button>
+      <button class="btn btn-danger btn-sm" id="drawer-delete-btn">Delete User</button>
+    </div>`}
+  `;
+
+  drawer.classList.add('open');
+  backdrop.classList.add('open');
+
+  // Wire actions
+  document.getElementById('drawer-reset-btn')?.addEventListener('click', () => {
+    closeDrawer();
+    sendResetEmail(user.id, user.email);
+  });
+  document.getElementById('drawer-delete-btn')?.addEventListener('click', () => {
+    closeDrawer();
+    deleteUser(user.id, user.email);
+  });
+
+  // Load activity counts
+  try {
+    const detail = await api.getAdminUser(user.id);
+    const pEl = document.getElementById('drawer-projects');
+    const tEl = document.getElementById('drawer-tasks');
+    const rEl = document.getElementById('drawer-risks');
+    if (pEl) pEl.textContent = detail.projectCount;
+    if (tEl) tEl.textContent = detail.taskCount;
+    if (rEl) rEl.textContent = detail.riskCount;
+  } catch {
+    ['drawer-projects', 'drawer-tasks', 'drawer-risks'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '—';
+    });
   }
 }
 

@@ -867,8 +867,19 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   cursor: pointer;
   transition: box-shadow .15s;
   position: relative;
+  overflow: hidden;
 }
 .card:hover { box-shadow: var(--shadow-md); }
+
+/* Trello-style thumbnail strip at top of task card */
+.card-thumb {
+  display: block;
+  width: calc(100% + 24px);
+  height: 100px;
+  object-fit: cover;
+  margin: -10px -12px 10px -12px;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
 .card-type-badge {
   font-size: 10px; font-weight: 600;
   text-transform: uppercase;
@@ -911,6 +922,9 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .task-check-btn.checked {
   background: var(--green); border-color: var(--green); color: #fff;
 }
+.task-check-btn.checked:hover {
+  background: var(--red); border-color: var(--red);
+}
 
 @keyframes task-check-shine {
   0%   { box-shadow: 0 0 0 0 rgba(0,200,83,0.7); transform: scale(1); }
@@ -941,10 +955,11 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 /* ========= Checklist progress badge (on task card) ========= */
 .checklist-progress {
   font-size: 11px; font-weight: 600;
-  color: var(--gray-500);
-  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 6px; border-radius: 4px;
+  background: var(--gray-200); color: var(--gray-500);
+  display: inline-flex; align-items: center;
 }
-.checklist-progress.all-done { color: var(--green); }
+.checklist-progress.all-done { background: var(--green-bg); color: var(--green); }
 
 /* ========= Checklist section (in modal) ========= */
 .checklist-section label { margin-bottom: 8px; }
@@ -996,6 +1011,75 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 }
 .checklist-add-row .form-control { flex: 1; }
 
+/* ========= Inline card checklists ========= */
+.card-checklist-section {
+  margin: 8px -12px 0;
+}
+.card-checklist-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 2px 12px 4px;
+  display: flex; align-items: center;
+}
+.card-checklist-summary::-webkit-details-marker { display: none; }
+
+.card-cl-active {
+  background: var(--red-bg);
+  padding: 6px 12px;
+}
+.card-cl-done-section { }
+.card-cl-done-summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 11px; font-weight: 600;
+  color: var(--green);
+  padding: 5px 12px;
+  background: var(--green-bg);
+  display: flex; align-items: center; gap: 5px;
+}
+.card-cl-done-summary::-webkit-details-marker { display: none; }
+.card-cl-done-summary::before {
+  content: '\25B6';
+  font-size: 8px;
+  display: inline-block;
+  transition: transform .2s;
+}
+details.card-cl-done-section[open] > .card-cl-done-summary::before {
+  transform: rotate(90deg);
+}
+.card-cl-done-items {
+  background: var(--green-bg);
+  padding: 4px 12px 8px;
+}
+
+.card-cl-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 0;
+}
+.card-cl-check-btn {
+  width: 20px; height: 20px; flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--gray-400);
+  background: transparent;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: transparent;
+  transition: border-color .15s, background .15s;
+}
+.card-cl-check-btn:hover { border-color: var(--blue); }
+.card-cl-check-btn.checked {
+  background: var(--gray-500);
+  border-color: var(--gray-500);
+  color: #fff;
+}
+.card-cl-text {
+  font-size: 12px; color: var(--gray-800); flex: 1;
+  word-break: break-word;
+}
+.card-cl-item.done .card-cl-text {
+  text-decoration: line-through; color: var(--gray-500);
+}
+
 /* Done tasks collapsible */
 .done-tasks-section { margin-top: 6px; }
 .done-tasks-toggle {
@@ -1006,6 +1090,15 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 }
 .done-tasks-toggle::-webkit-details-marker { display: none; }
 .done-tasks-toggle::marker { display: none; }
+.done-tasks-toggle::before {
+  content: '\25B6';
+  font-size: 9px;
+  display: inline-block;
+  transition: transform .2s;
+}
+details.done-tasks-section[open] > .done-tasks-toggle::before {
+  transform: rotate(90deg);
+}
 .done-tasks-toggle:hover { background: var(--gray-200); color: var(--gray-700); }
 .done-tasks-list { margin-top: 4px; }
 
@@ -1030,8 +1123,9 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .status-badge.Open { background: var(--orange-bg); color: var(--orange); }
 .status-badge.Resolved { background: var(--green-bg); color: var(--green); }
 
-.due-date { font-size: 11px; color: var(--gray-500); }
-.due-date.overdue { color: var(--red); font-weight: 600; }
+.due-date { font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; background: var(--gray-200); color: var(--gray-500); }
+.due-date.due-soon { background: var(--orange-bg); color: var(--orange); }
+.due-date.overdue { background: var(--red-bg); color: var(--red); }
 
 /* ========= Bucket Storyboard ========= */
 .bucket-storyboard {
@@ -1250,8 +1344,6 @@ body[data-theme="dark"] .board-container.has-bg #board-search {
   padding: 20px;
   text-align: center;
 }
-.admin-stat-card.accent { border-color: var(--blue); background: rgba(0,82,204,0.06); }
-body[data-theme="dark"] .admin-stat-card.accent { background: rgba(0,82,204,0.15); }
 .admin-stat-number { font-size: 2rem; font-weight: 700; color: var(--text); line-height: 1.2; }
 .admin-stat-label { font-size: 0.82rem; color: var(--gray-500); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
 
@@ -1316,6 +1408,84 @@ body[data-theme="dark"] .admin-table tbody tr:hover { background: rgba(255,255,2
   display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 16px;
 }
 .admin-page-info { font-size: 0.85rem; color: var(--gray-500); }
+
+.admin-self-lock {
+  font-size: 0.78rem; color: var(--gray-400);
+  display: inline-flex; align-items: center; gap: 5px;
+}
+
+/* ========= Admin User Drawer ========= */
+.admin-drawer-backdrop {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 400;
+}
+.admin-drawer-backdrop.open { display: block; }
+
+.admin-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: 340px; max-width: 95vw;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+  z-index: 401;
+  transform: translateX(100%);
+  transition: transform .25s ease;
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+.admin-drawer.open { transform: translateX(0); }
+
+.admin-drawer-close {
+  position: absolute; top: 12px; right: 14px;
+  background: none; border: none; cursor: pointer;
+  font-size: 16px; color: var(--gray-400); line-height: 1;
+  padding: 4px;
+}
+.admin-drawer-close:hover { color: var(--text); }
+
+.admin-drawer-content { padding: 48px 24px 24px; }
+
+.admin-drawer-hero {
+  display: flex; align-items: center; gap: 14px;
+  margin-bottom: 24px;
+}
+.admin-drawer-avatar {
+  width: 56px; height: 56px; border-radius: 50%;
+  object-fit: cover; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 1.4rem; font-weight: 700;
+}
+.admin-drawer-avatar-initial {
+  background: var(--blue); color: #fff;
+}
+.admin-drawer-name {
+  font-size: 1rem; font-weight: 600; color: var(--text);
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.admin-drawer-email { font-size: 0.83rem; color: var(--gray-500); margin-top: 2px; word-break: break-all; }
+
+.admin-drawer-details {
+  display: grid; grid-template-columns: auto 1fr;
+  gap: 8px 16px; margin: 0 0 24px;
+  font-size: 0.85rem;
+}
+.admin-drawer-details dt { color: var(--gray-500); font-weight: 500; white-space: nowrap; }
+.admin-drawer-details dd { color: var(--text); margin: 0; }
+
+.admin-drawer-actions {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.admin-drawer-actions .btn { justify-content: center; }
+
+.admin-drawer-self-note {
+  font-size: 0.82rem; color: var(--gray-400);
+  background: var(--gray-100); border-radius: var(--radius);
+  padding: 10px 14px; margin: 0;
+  display: flex; align-items: center; gap: 6px;
+}
+body[data-theme="dark"] .admin-drawer-self-note { background: var(--bg2); }
 
 .admin-cb-col { width: 36px; text-align: center; }
 .admin-cb-col input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; accent-color: var(--blue); }

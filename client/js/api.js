@@ -90,6 +90,7 @@ export const api = {
 
   // Admin
   getAdminStats: () => request('GET', '/admin/stats'),
+  getAdminUser: (id) => request('GET', `/admin/users/${id}`),
   getAdminUsers: (q, page) => {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
