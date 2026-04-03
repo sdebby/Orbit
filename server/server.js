@@ -125,6 +125,12 @@ app.use((err, req, res, next) => {
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({ error: 'File too large' });
   }
+  if (err.code === 'LIMIT_FIELD_VALUE') {
+    return res.status(400).json({ error: 'Field value too large' });
+  }
+  if (err.status === 413 || err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Request body too large' });
+  }
   if (err.message && err.message.startsWith('Only .jpg')) {
     return res.status(400).json({ error: err.message });
   }

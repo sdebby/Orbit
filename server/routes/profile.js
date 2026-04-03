@@ -4,6 +4,11 @@ const db = require('../models/db');
 const { requireAuth } = require('../middleware/auth');
 const { hashPassword, verifyPassword, decryptEmail, safePicturePath } = require('../utils/hash');
 
+function stripHtmlTags(str) {
+  if (typeof str !== 'string') return str;
+  return str.replace(/<\/?[a-zA-Z][^>]*>/g, '');
+}
+
 function validatePassword(password) {
   if (!password || password.length < 8) return 'Password must be at least 8 characters';
   if (!/[A-Z]/.test(password))          return 'Password must contain at least one uppercase letter';
@@ -52,7 +57,7 @@ router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) 
   const picture = req.file ? `/uploads/${req.file.filename}` : safePicturePath(user.profile_picture);
   const trimmedUsername = username !== undefined ? username.trim() : null;
   if (trimmedUsername !== null && trimmedUsername.length > 50) return res.status(400).json({ error: 'Username must be 50 characters or fewer' });
-  const updatedUsername = username !== undefined ? (trimmedUsername || null) : user.username;
+  const updatedUsername = username !== undefined ? stripHtmlTags(trimmedUsername) || null : user.username;
 
   db.prepare('UPDATE users SET profile_picture = ?, password_hash = ?, username = ? WHERE id = ?')
     .run(picture, passwordHash, updatedUsername, user.id);

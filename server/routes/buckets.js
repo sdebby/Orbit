@@ -8,6 +8,11 @@ function validColor(c) {
   return c && HEX_COLOR_RE.test(c) ? c : null;
 }
 
+function stripHtmlTags(str) {
+  if (typeof str !== 'string') return str;
+  return str.replace(/<\/?[a-zA-Z][^>]*>/g, '');
+}
+
 function ownsProject(userId, projectId) {
   return db.prepare('SELECT id FROM projects WHERE id = ? AND user_id = ?').get(projectId, userId);
 }
@@ -38,7 +43,7 @@ router.post('/', requireAuth, (req, res) => {
 
   const result = db.prepare(
     'INSERT INTO buckets (project_id, title, description, color, position) VALUES (?, ?, ?, ?, ?)'
-  ).run(req.params.projectId, title, description || null, validColor(color), position);
+  ).run(req.params.projectId, stripHtmlTags(title), stripHtmlTags(description) || null, validColor(color), position);
 
   const bucket = db.prepare('SELECT * FROM buckets WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(bucket);
@@ -55,7 +60,7 @@ router.put('/:id', requireAuth, (req, res) => {
   if (description !== undefined && description.length > 5000) return res.status(400).json({ error: 'Description must be 5000 characters or fewer' });
   const safePos = position !== undefined ? Math.min(Math.max(1, parseInt(position) || 1), 10000) : bucket.position;
   db.prepare('UPDATE buckets SET title = ?, description = ?, color = ?, position = ? WHERE id = ?')
-    .run(title || bucket.title, description ?? bucket.description, color !== undefined ? validColor(color) : bucket.color, safePos, bucket.id);
+    .run(stripHtmlTags(title || bucket.title), stripHtmlTags(description ?? bucket.description), color !== undefined ? validColor(color) : bucket.color, safePos, bucket.id);
 
   const updated = db.prepare('SELECT * FROM buckets WHERE id = ?').get(bucket.id);
   res.json(updated);

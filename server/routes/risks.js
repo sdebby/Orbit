@@ -22,7 +22,7 @@ const upload = multer({
     destination: path.join(__dirname, '..', 'uploads'),
     filename: (req, file, cb) => cb(null, `risk-${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`),
   }),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024, fieldSize: 10 * 1024 },
   fileFilter: imageFilter,
 });
 
@@ -36,6 +36,26 @@ function ownsRisk(userId, riskId) {
     JOIN projects p ON r.project_id = p.id
     WHERE r.id = ? AND p.user_id = ?
   `).get(riskId, userId);
+}
+
+function stripHtmlTags(str) {
+  if (typeof str !== 'string') return str;
+  return str.replace(/<\/?[a-zA-Z][^>]*>/g, '');
+}
+
+function parseTags(val, fallback) {
+  if (val === undefined || val === null) return fallback !== undefined ? fallback : [];
+  let arr;
+  if (Array.isArray(val)) {
+    arr = val;
+  } else if (typeof val === 'string') {
+    try { arr = JSON.parse(val); } catch { return null; }
+  } else {
+    return null;
+  }
+  if (!Array.isArray(arr)) return null;
+  if (arr.some(t => typeof t !== 'string')) return null;
+  return arr;
 }
 
 function computeRpn(severity, probability, detectability) {
@@ -77,7 +97,8 @@ router.post('/', requireAuth, upload.single('photo'), (req, res) => {
   const pr = Math.min(10, Math.max(1, parseInt(probability) || 5));
   const d = Math.min(10, Math.max(1, parseInt(detectability) || 5));
   const validStatus = ['Open', 'Resolved'].includes(status) ? status : 'Open';
-  const tagsArr = tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : [];
+  const tagsArr = parseTags(tags);
+  if (tagsArr === null) return res.status(400).json({ error: 'tags must be an array of strings' });
   if (tagsArr.length > 20) return res.status(400).json({ error: 'Too many tags (max 20)' });
   if (tagsArr.some(t => t.length > 50)) return res.status(400).json({ error: 'Each tag must be 50 characters or fewer' });
   const photosArr = req.file ? [`/uploads/${req.file.filename}`] : [];
@@ -88,7 +109,7 @@ router.post('/', requireAuth, upload.single('photo'), (req, res) => {
   const result = db.prepare(`
     INSERT INTO risks (project_id, description, severity, probability, detectability, solution_description, status, tags, photos, position)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(req.params.projectId, description, s, pr, d, solution_description || null, validStatus, JSON.stringify(tagsArr), JSON.stringify(photosArr), position);
+  `).run(req.params.projectId, stripHtmlTags(description), s, pr, d, stripHtmlTags(solution_description) || null, validStatus, JSON.stringify(tagsArr.map(stripHtmlTags)), JSON.stringify(photosArr), position);
 
   const risk = db.prepare('SELECT * FROM risks WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(serializeRisk(risk));
@@ -113,7 +134,8 @@ router.put('/:id', requireAuth, upload.single('photo'), (req, res) => {
   const pr = Math.min(10, Math.max(1, parseInt(probability) || risk.probability));
   const d = Math.min(10, Math.max(1, parseInt(detectability) || risk.detectability));
   const validStatus = ['Open', 'Resolved'].includes(status) ? status : risk.status;
-  const tagsArr = tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : JSON.parse(risk.tags || '[]');
+  const tagsArr = parseTags(tags, JSON.parse(risk.tags || '[]'));
+  if (tagsArr === null) return res.status(400).json({ error: 'tags must be an array of strings' });
   if (tagsArr.length > 20) return res.status(400).json({ error: 'Too many tags (max 20)' });
   if (tagsArr.some(t => t.length > 50)) return res.status(400).json({ error: 'Each tag must be 50 characters or fewer' });
   const existingPhotos = JSON.parse(risk.photos || '[]');
@@ -123,9 +145,9 @@ router.put('/:id', requireAuth, upload.single('photo'), (req, res) => {
     UPDATE risks SET description = ?, severity = ?, probability = ?, detectability = ?,
     solution_description = ?, status = ?, tags = ?, photos = ?, position = ? WHERE id = ?
   `).run(
-    description || risk.description, s, pr, d,
-    solution_description ?? risk.solution_description, validStatus,
-    JSON.stringify(tagsArr), JSON.stringify(photosArr), position ?? risk.position, risk.id
+    stripHtmlTags(description || risk.description), s, pr, d,
+    stripHtmlTags(solution_description ?? risk.solution_description), validStatus,
+    JSON.stringify(tagsArr.map(stripHtmlTags)), JSON.stringify(photosArr), position ?? risk.position, risk.id
   );
 
   const updated = db.prepare('SELECT * FROM risks WHERE id = ?').get(risk.id);

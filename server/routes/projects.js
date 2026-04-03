@@ -22,7 +22,27 @@ const storage = multer.diskStorage({
   destination: path.join(__dirname, '..', 'uploads'),
   filename: (req, file, cb) => cb(null, `project-${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`),
 });
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: imageFilter });
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024, fieldSize: 10 * 1024 }, fileFilter: imageFilter });
+
+function stripHtmlTags(str) {
+  if (typeof str !== 'string') return str;
+  return str.replace(/<\/?[a-zA-Z][^>]*>/g, '');
+}
+
+function parseTags(val, fallback) {
+  if (val === undefined || val === null) return fallback !== undefined ? fallback : [];
+  let arr;
+  if (Array.isArray(val)) {
+    arr = val;
+  } else if (typeof val === 'string') {
+    try { arr = JSON.parse(val); } catch { return null; }
+  } else {
+    return null;
+  }
+  if (!Array.isArray(arr)) return null;
+  if (arr.some(t => typeof t !== 'string')) return null;
+  return arr;
+}
 
 // GET /api/projects  — with optional search
 router.get('/', requireAuth, (req, res) => {
@@ -56,14 +76,15 @@ router.post('/', requireAuth, upload.single('picture'), (req, res) => {
   if (title.length > 100) return res.status(400).json({ error: 'Title must be 100 characters or fewer' });
   if (description && description.length > 5000) return res.status(400).json({ error: 'Description must be 5000 characters or fewer' });
 
-  const tagsArr = tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : [];
+  const tagsArr = parseTags(tags);
+  if (tagsArr === null) return res.status(400).json({ error: 'tags must be an array of strings' });
   if (tagsArr.length > 20) return res.status(400).json({ error: 'Too many tags (max 20)' });
   if (tagsArr.some(t => t.length > 50)) return res.status(400).json({ error: 'Each tag must be 50 characters or fewer' });
   const picture = req.file ? `/uploads/${req.file.filename}` : null;
 
   const result = db.prepare(
     'INSERT INTO projects (user_id, title, description, picture, tags) VALUES (?, ?, ?, ?, ?)'
-  ).run(req.user.userId, title, description || null, picture, JSON.stringify(tagsArr));
+  ).run(req.user.userId, stripHtmlTags(title), stripHtmlTags(description) || null, picture, JSON.stringify(tagsArr.map(stripHtmlTags)));
 
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json({ ...project, tags: JSON.parse(project.tags) });
@@ -86,7 +107,8 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
   const { title, description, tags, remove_picture } = req.body;
   if (title !== undefined && title.length > 100) return res.status(400).json({ error: 'Title must be 100 characters or fewer' });
   if (description !== undefined && description.length > 5000) return res.status(400).json({ error: 'Description must be 5000 characters or fewer' });
-  const tagsArr = tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : JSON.parse(project.tags || '[]');
+  const tagsArr = parseTags(tags, JSON.parse(project.tags || '[]'));
+  if (tagsArr === null) return res.status(400).json({ error: 'tags must be an array of strings' });
   if (tagsArr.length > 20) return res.status(400).json({ error: 'Too many tags (max 20)' });
   if (tagsArr.some(t => t.length > 50)) return res.status(400).json({ error: 'Each tag must be 50 characters or fewer' });
   let picture;
@@ -95,7 +117,7 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
   else picture = safePicturePath(project.picture);
 
   db.prepare('UPDATE projects SET title = ?, description = ?, picture = ?, tags = ? WHERE id = ?')
-    .run(title || project.title, description ?? project.description, picture, JSON.stringify(tagsArr), project.id);
+    .run(stripHtmlTags(title || project.title), stripHtmlTags(description ?? project.description), picture, JSON.stringify(tagsArr.map(stripHtmlTags)), project.id);
 
   const updated = db.prepare('SELECT * FROM projects WHERE id = ?').get(project.id);
   res.json({ ...updated, tags: JSON.parse(updated.tags) });

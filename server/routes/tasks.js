@@ -23,13 +23,33 @@ const upload = multer({
     destination: path.join(__dirname, '..', 'uploads'),
     filename: (req, file, cb) => cb(null, `task-${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`),
   }),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024, fieldSize: 10 * 1024 },
   fileFilter: imageFilter,
 });
 
 function ownsBucket(userId, bucketId) {
   return db.prepare('SELECT b.id FROM buckets b JOIN projects p ON b.project_id = p.id WHERE b.id = ? AND p.user_id = ?')
     .get(bucketId, userId);
+}
+
+function stripHtmlTags(str) {
+  if (typeof str !== 'string') return str;
+  return str.replace(/<\/?[a-zA-Z][^>]*>/g, '');
+}
+
+function parseTags(val, fallback) {
+  if (val === undefined || val === null) return fallback !== undefined ? fallback : [];
+  let arr;
+  if (Array.isArray(val)) {
+    arr = val;
+  } else if (typeof val === 'string') {
+    try { arr = JSON.parse(val); } catch { return null; }
+  } else {
+    return null;
+  }
+  if (!Array.isArray(arr)) return null;
+  if (arr.some(t => typeof t !== 'string')) return null;
+  return arr;
 }
 
 function ownsTask(userId, taskId) {
@@ -66,7 +86,8 @@ router.post('/', requireAuth, upload.single('picture'), (req, res) => {
 
   const validPriorities = ['Low', 'Medium', 'High'];
   const p = validPriorities.includes(priority) ? priority : 'Medium';
-  const tagsArr = tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : [];
+  const tagsArr = parseTags(tags);
+  if (tagsArr === null) return res.status(400).json({ error: 'tags must be an array of strings' });
   if (tagsArr.length > 20) return res.status(400).json({ error: 'Too many tags (max 20)' });
   if (tagsArr.some(t => t.length > 50)) return res.status(400).json({ error: 'Each tag must be 50 characters or fewer' });
   const picture = req.file ? `/uploads/${req.file.filename}` : null;
@@ -76,7 +97,7 @@ router.post('/', requireAuth, upload.single('picture'), (req, res) => {
 
   const result = db.prepare(
     'INSERT INTO tasks (bucket_id, description, priority, due_date, tags, position, picture) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(req.params.bucketId, description, p, due_date || null, JSON.stringify(tagsArr), position, picture);
+  ).run(req.params.bucketId, stripHtmlTags(description), p, due_date || null, JSON.stringify(tagsArr.map(stripHtmlTags)), position, picture);
 
   const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json({ ...task, tags: JSON.parse(task.tags), picture: safePicturePath(task.picture) });
@@ -120,7 +141,8 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
     if (ownsBucket(req.user.userId, bucket_id)) targetBucketId = bucket_id;
   }
 
-  const tagsArr = tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : JSON.parse(task.tags || '[]');
+  const tagsArr = parseTags(tags, JSON.parse(task.tags || '[]'));
+  if (tagsArr === null) return res.status(400).json({ error: 'tags must be an array of strings' });
   if (tagsArr.length > 20) return res.status(400).json({ error: 'Too many tags (max 20)' });
   if (tagsArr.some(t => t.length > 50)) return res.status(400).json({ error: 'Each tag must be 50 characters or fewer' });
   const picture = req.file ? `/uploads/${req.file.filename}` : safePicturePath(task.picture);
@@ -133,7 +155,7 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
   }
 
   db.prepare('UPDATE tasks SET bucket_id = ?, description = ?, priority = ?, due_date = ?, tags = ?, position = ?, picture = ?, completed_at = ? WHERE id = ?')
-    .run(targetBucketId, description || task.description, p, due_date ?? task.due_date, JSON.stringify(tagsArr), position ?? task.position, picture, completedAt, task.id);
+    .run(targetBucketId, stripHtmlTags(description || task.description), p, due_date ?? task.due_date, JSON.stringify(tagsArr.map(stripHtmlTags)), position ?? task.position, picture, completedAt, task.id);
 
   const updated = db.prepare('SELECT * FROM tasks WHERE id = ?').get(task.id);
   res.json({ ...updated, tags: JSON.parse(updated.tags), picture: safePicturePath(updated.picture) });
@@ -172,7 +194,7 @@ router.post('/:id/checklists', requireAuth, (req, res) => {
   const maxPos = db.prepare('SELECT MAX(position) as m FROM task_checklists WHERE task_id = ?').get(req.params.id);
   const position = (maxPos.m || 0) + 1;
   const result = db.prepare('INSERT INTO task_checklists (task_id, text, position) VALUES (?, ?, ?)')
-    .run(req.params.id, text.trim(), position);
+    .run(req.params.id, stripHtmlTags(text.trim()), position);
   const item = db.prepare('SELECT * FROM task_checklists WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(item);
 });

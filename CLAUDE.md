@@ -238,17 +238,25 @@
 
 ## Authentication & Security
 
-- **JWT** in `localStorage` (`orbit_token`); 7-day expiry; Bearer header on all API calls
+- **JWT** in httpOnly `SameSite=Strict` cookie (`orbit_token`); 7-day expiry; also accepted via `Bearer` header for API clients
 - **Passwords**: Argon2id via `server/utils/hash.js` — **never SHA-512**
-- **Emails**: stored normalized + SHA-512 hash for constant-time lookup
+- **Emails**: stored AES-256-GCM encrypted at rest; SHA-512 hash stored separately for constant-time lookup
+- **Email encryption key**: `EMAIL_ENCRYPTION_KEY` env var (32-byte hex); falls back to a key derived from `JWT_SECRET`
 - **Password complexity**: 8+ chars, uppercase, number, special character (enforced on register and password change)
+- **Email verification**: accounts must verify email before login; unverified logins get `403 EMAIL_NOT_VERIFIED`
 - **Security headers**: `helmet` with CSP (`self`, `unsafe-inline` for styles, no inline scripts)
 - **CORS**: restricted to `APP_URL` env var only
 - **CSRF defense**: POST/PUT/DELETE requests with a mismatched `Origin` header are rejected with 403
-- **Rate limiting**: auth 20/15 min; forgot-password 5/1 hr
-- **Body size**: 10 KB limit on JSON/form payloads
-- **File uploads**: MIME type + extension whitelist (jpg/jpeg/png); filenames replaced with `crypto.randomUUID()` + extension
+- **Session fixation defense**: existing cookie is cleared before issuing a new one at login
+- **Rate limiting**: auth 20/15 min; forgot-password 5/1 hr; verify-email 10/15 min; profile 30/15 min
+- **Body size**: 10 KB limit on JSON payloads; multipart form field values capped at 10 KB via multer `fieldSize`
+- **File uploads**: MIME type + extension whitelist (jpg/jpeg/png); filenames replaced with `crypto.randomUUID()` + extension; `/uploads` route requires valid auth cookie
 - **Timing attack mitigation**: forgot-password always responds after a minimum 300 ms delay
+- **Input type validation**: `tags` fields are strictly validated as arrays of strings by `parseTags()` in each route — non-array, non-string-element, or unparseable input returns 400
+- **HTML stripping at ingestion**: all free-text fields (description, title, tags, username, checklist text) pass through `stripHtmlTags()` before DB write — strips `<tag>` patterns while preserving `x < 5` style text; never rely solely on client-side `escHtml()`
+- **Error handler**: catches `LIMIT_FILE_SIZE`, `LIMIT_FIELD_VALUE`, and `entity.too.large` — all return 4xx, never 500
+- **Admin panel isolation**: `admin.js` is dynamically imported (not in the main bundle); admin status is verified server-side via `GET /api/auth/me` at render time — localStorage `isAdmin` flag is cosmetic only; admin API functions are defined locally in `admin.js`, not in the shared `api.js`
+- **Admin authorization**: `requireAdmin` middleware checks the caller's `email_hash` against `SUPER_ADMIN_EMAIL` env var — admin role is never stored in the DB
 
 ---
 
@@ -323,13 +331,16 @@
 - All timestamps (`created_at`, `completed_at`) are set **server-side** — never trust client-supplied timestamps
 - **RPN is computed** — always derive server-side: `rpn = severity × probability × detectability`; never store it
 - **Passwords**: always use Argon2id via `server/utils/hash.js` — never SHA-512
-- **HTML rendering**: always use `escHtml()` before inserting user data into innerHTML
+- **HTML rendering**: always use `escHtml()` before inserting user data into innerHTML (client-side second layer — stripping happens server-side first)
+- **Text fields at ingestion**: always apply `stripHtmlTags()` before any DB write — strips `<tag>` patterns, defined locally in each route file
+- **Tags at ingestion**: always parse via `parseTags(val, fallback)` — returns `null` on type error (caller returns 400), ensuring only `string[]` reaches the DB; defined locally in each route file
 - **File URLs in CSS**: validate with `/^\/uploads\/[\w\-\.]+$/` before using in `style.backgroundImage`
 - Uploaded file paths follow the pattern `/uploads/<prefix>-<uuid><.ext>`
 - Tag arrays are plain string arrays (JSON); no rigid taxonomy
 - SQLite migrations use idempotent `try { ALTER TABLE … } catch {}` or full table-recreate pattern
 - `node-sqlite3-wasm` requires params as an array — use the `Statement` wrapper in `db.js`
 - REST conventions: collection routes on the parent (`/projects/:id/buckets`), standalone CRUD on `/buckets/:id`
+- **`api.js` exports `request`** — admin-only API calls must live in `admin.js` using the exported `request`, not in the shared `api` object; keeps admin endpoint URLs out of the common bundle
 - Ask before introducing any new third-party libraries
 
 ---
@@ -338,14 +349,17 @@
 
 ```
 PORT=3000
-APP_URL=http://localhost:3000   # Used for CORS allowed origin and reset-link base URL
-JWT_SECRET=<long random hex>
+APP_URL=http://localhost:3000        # Used for CORS allowed origin and reset-link base URL
+JWT_SECRET=<long random hex>         # Signs JWTs; also used as fallback email encryption key
+EMAIL_ENCRYPTION_KEY=<32-byte hex>   # AES-256-GCM key for email at-rest encryption (preferred over fallback)
+SUPER_ADMIN_EMAIL=<email>            # Admin role granted to this email; never stored in DB
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_SECURE=false
 SMTP_USER=<gmail address>
 SMTP_PASS=<gmail app password>
 SMTP_FROM=<gmail address>
+NODE_ENV=production                  # Set in production: enables secure cookies, HSTS
 ```
 
 **Never commit `.env`** — it is in `.gitignore`.

@@ -1,7 +1,23 @@
-import { api } from '../api.js';
+import { api, request } from '../api.js';
 import { toast, escHtml } from '../utils.js';
 import { navigate } from '../router.js';
 import { navbarHtml, setupNavbar } from './projects.js';
+
+// Admin API — defined locally so endpoints aren't exposed in the shared api.js module
+const adminApi = {
+  getStats: () => request('GET', '/admin/stats'),
+  getUser: (id) => request('GET', `/admin/users/${id}`),
+  getUsers: (q, page) => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (page) params.set('page', page);
+    const qs = params.toString();
+    return request('GET', `/admin/users${qs ? '?' + qs : ''}`);
+  },
+  deleteUser: (id) => request('DELETE', `/admin/users/${id}`),
+  bulkDeleteUsers: (ids) => request('POST', '/admin/users/bulk-delete', { ids }),
+  resetPassword: (id) => request('POST', `/admin/users/${id}/reset-password`),
+};
 
 let searchTimeout = null;
 let currentPage = 1;
@@ -9,10 +25,15 @@ let statsInterval = null;
 let selectedIds = new Set();
 
 export async function renderAdmin(app) {
-  // Check admin access client-side (server enforces it too)
-  const user = JSON.parse(localStorage.getItem('orbit_user') || '{}');
-  if (!user.isAdmin) {
-    navigate('/projects');
+  // Verify admin status server-side — localStorage can be tampered with
+  try {
+    const me = await api.me();
+    if (!me.isAdmin) {
+      navigate('/projects');
+      return;
+    }
+  } catch {
+    navigate('/login');
     return;
   }
 
@@ -100,7 +121,7 @@ async function loadStats() {
   const el = document.getElementById('admin-stats');
   if (!el) { clearInterval(statsInterval); return; }
   try {
-    const s = await api.getAdminStats();
+    const s = await adminApi.getStats();
     el.innerHTML = `
       <div class="admin-stat-card">
         <div class="admin-stat-number">${s.totalUsers}</div>
@@ -128,7 +149,7 @@ async function loadUsers(q = '') {
   const el = document.getElementById('admin-users-table');
   if (!el) return;
   try {
-    const data = await api.getAdminUsers(q, currentPage);
+    const data = await adminApi.getUsers(q, currentPage);
     renderUsersTable(el, data.users);
     renderPagination(data.page, data.totalPages);
   } catch (err) {
@@ -272,7 +293,7 @@ function renderPagination(page, totalPages) {
 async function sendResetEmail(userId, email) {
   if (!confirm(`Send a password reset email to "${email}"?`)) return;
   try {
-    await api.adminResetPassword(userId);
+    await adminApi.resetPassword(userId);
     toast('Password reset email sent');
   } catch (err) {
     toast(err.message, 'error');
@@ -282,7 +303,7 @@ async function sendResetEmail(userId, email) {
 async function deleteUser(userId, email) {
   if (!confirm(`Delete user "${email}"? This will permanently remove all their data.`)) return;
   try {
-    await api.adminDeleteUser(userId);
+    await adminApi.deleteUser(userId);
     toast('User deleted');
     selectedIds.delete(parseInt(userId));
     loadStats();
@@ -348,7 +369,7 @@ async function openDrawer(user) {
 
   // Load activity counts
   try {
-    const detail = await api.getAdminUser(user.id);
+    const detail = await adminApi.getUser(user.id);
     const pEl = document.getElementById('drawer-projects');
     const tEl = document.getElementById('drawer-tasks');
     const rEl = document.getElementById('drawer-risks');
@@ -367,7 +388,7 @@ async function bulkDelete() {
   if (!selectedIds.size) return;
   if (!confirm(`Delete ${selectedIds.size} user(s)? This will permanently remove all their data.`)) return;
   try {
-    const result = await api.adminBulkDeleteUsers([...selectedIds]);
+    const result = await adminApi.bulkDeleteUsers([...selectedIds]);
     toast(result.message);
     selectedIds.clear();
     loadStats();

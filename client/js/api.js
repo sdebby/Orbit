@@ -1,6 +1,6 @@
 const BASE = '/api';
 
-async function request(method, path, body, formData) {
+export async function request(method, path, body, formData) {
   const headers = {};
 
   let reqBody;
@@ -87,20 +87,6 @@ export const api = {
     ? request('PUT', `/tasks/${id}`, null, data)
     : request('PUT', `/tasks/${id}`, data),
   deleteTask: (id) => request('DELETE', `/tasks/${id}`),
-
-  // Admin
-  getAdminStats: () => request('GET', '/admin/stats'),
-  getAdminUser: (id) => request('GET', `/admin/users/${id}`),
-  getAdminUsers: (q, page) => {
-    const params = new URLSearchParams();
-    if (q) params.set('q', q);
-    if (page) params.set('page', page);
-    const qs = params.toString();
-    return request('GET', `/admin/users${qs ? '?' + qs : ''}`);
-  },
-  adminDeleteUser: (id) => request('DELETE', `/admin/users/${id}`),
-  adminBulkDeleteUsers: (ids) => request('POST', '/admin/users/bulk-delete', { ids }),
-  adminResetPassword: (id) => request('POST', `/admin/users/${id}/reset-password`),
 
   // Checklists
   getChecklists: (taskId) => request('GET', `/tasks/${taskId}/checklists`),
