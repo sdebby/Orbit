@@ -419,14 +419,25 @@ export async function renderBoard(app, params) {
 
     // Task cards (active + done)
     col.querySelectorAll('.task-card').forEach(card => {
-      card.onclick = () => {
-        const task = tasks.find(t => t.id == card.dataset.id);
-        if (task && !task.completed_at) showTaskModal(bucket.id, task);
+      card.onclick = async () => {
+        const cached = tasks.find(t => t.id == card.dataset.id);
+        if (!cached || cached.completed_at) return;
+        try {
+          const freshTask = await api.getTask(card.dataset.id);
+          if (!freshTask.completed_at) showTaskModal(bucket.id, freshTask);
+        } catch {
+          showTaskModal(bucket.id, cached);
+        }
       };
-      card.querySelector('.card-edit-btn')?.addEventListener('click', (e) => {
+      card.querySelector('.card-edit-btn')?.addEventListener('click', async (e) => {
         e.stopPropagation();
-        const task = tasks.find(t => t.id == card.dataset.id);
-        if (task) showTaskModal(bucket.id, task);
+        try {
+          const freshTask = await api.getTask(card.dataset.id);
+          showTaskModal(bucket.id, freshTask);
+        } catch {
+          const task = tasks.find(t => t.id == card.dataset.id);
+          if (task) showTaskModal(bucket.id, task);
+        }
       });
       card.querySelector('.card-delete-btn')?.addEventListener('click', async (e) => {
         e.stopPropagation();

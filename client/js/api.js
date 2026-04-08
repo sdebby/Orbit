@@ -80,6 +80,7 @@ export const api = {
 
   // Tasks
   getTasks: (bucketId) => request('GET', `/buckets/${bucketId}/tasks`),
+  getTask: (id) => request('GET', `/tasks/${id}`),
   createTask: (bucketId, data) => data instanceof FormData
     ? request('POST', `/buckets/${bucketId}/tasks`, null, data)
     : request('POST', `/buckets/${bucketId}/tasks`, data),
