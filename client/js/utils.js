@@ -66,11 +66,17 @@ export function tagsHtml(tags) {
   return tags.map(t => `<span class="tag">${escHtml(t)}</span>`).join('');
 }
 
-// Tags input widget — returns { getValue, setValue, mount }
-export function tagsInput(container, initial = []) {
+// Tags input widget — returns { getValue, setValue }
+export function tagsInput(container, initial = [], suggestions = []) {
   let tags = [...initial];
+  let dropdown = null;
+
+  function removeDropdown() {
+    if (dropdown) { dropdown.remove(); dropdown = null; }
+  }
 
   function render() {
+    removeDropdown();
     container.innerHTML = '';
     container.className = 'tags-input-box';
     const wrap = document.createElement('div');
@@ -84,18 +90,48 @@ export function tagsInput(container, initial = []) {
     });
     const inp = document.createElement('input');
     inp.placeholder = 'Add tag, press Enter';
+
+    function addTag(val) {
+      const v = val.trim().replace(',', '');
+      if (v && !tags.includes(v)) tags.push(v);
+      inp.value = '';
+      render();
+    }
+
+    function showDropdown() {
+      removeDropdown();
+      const q = inp.value.trim().toLowerCase();
+      if (!q || !suggestions.length) return;
+      const matches = suggestions.filter(s =>
+        s.toLowerCase().includes(q) && !tags.includes(s)
+      );
+      if (!matches.length) return;
+      dropdown = document.createElement('div');
+      dropdown.className = 'tags-suggest';
+      matches.forEach(s => {
+        const item = document.createElement('div');
+        item.className = 'tags-suggest-item';
+        item.textContent = s;
+        item.onmousedown = (e) => { e.preventDefault(); addTag(s); };
+        dropdown.appendChild(item);
+      });
+      container.appendChild(dropdown);
+    }
+
     inp.onkeydown = (e) => {
       if ((e.key === 'Enter' || e.key === ',') && inp.value.trim()) {
         e.preventDefault();
-        const val = inp.value.trim().replace(',', '');
-        if (val && !tags.includes(val)) tags.push(val);
-        inp.value = '';
-        render();
+        addTag(inp.value);
       } else if (e.key === 'Backspace' && !inp.value && tags.length) {
         tags.pop();
         render();
+      } else if (e.key === 'Escape') {
+        removeDropdown();
       }
     };
+    inp.oninput = showDropdown;
+    inp.onblur = () => setTimeout(removeDropdown, 150);
+
     wrap.appendChild(inp);
     container.appendChild(wrap);
     container.onclick = () => inp.focus();

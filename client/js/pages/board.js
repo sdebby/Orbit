@@ -733,7 +733,7 @@ export async function renderBoard(app, params) {
       <form id="task-form">
         <div class="form-group">
           <label>Description *</label>
-          <textarea class="form-control" id="t-desc" required>${escHtml(task?.description || '')}</textarea>
+          <input type="text" class="form-control" id="t-desc" required value="${escHtml(task?.description || '')}" />
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -771,7 +771,11 @@ export async function renderBoard(app, params) {
         </div>
       </form>
     `);
-    const tagsWidget = tagsInput(document.getElementById('t-tags-input'), task?.tags || []);
+    const projectTags = [...new Set([
+      ...Object.values(itemsByBucket).flatMap(({ tasks }) => tasks.flatMap(t => t.tags || [])),
+      ...projectRisks.flatMap(r => r.tags || []),
+    ])];
+    const tagsWidget = tagsInput(document.getElementById('t-tags-input'), task?.tags || [], projectTags);
     document.getElementById('t-cancel').onclick = hideModal;
 
     // ---- Checklist logic ----
@@ -951,7 +955,11 @@ export async function renderBoard(app, params) {
       </form>
     `);
 
-    const tagsWidget = tagsInput(document.getElementById('r-tags-input'), risk?.tags || []);
+    const projectTags = [...new Set([
+      ...Object.values(itemsByBucket).flatMap(({ tasks }) => tasks.flatMap(t => t.tags || [])),
+      ...projectRisks.flatMap(r => r.tags || []),
+    ])];
+    const tagsWidget = tagsInput(document.getElementById('r-tags-input'), risk?.tags || [], projectTags);
     document.getElementById('r-cancel').onclick = hideModal;
 
     // RPN live calculation

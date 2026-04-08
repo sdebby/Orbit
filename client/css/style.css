@@ -196,7 +196,7 @@ input, textarea, select { font: inherit; }
 }
 .modal-overlay.hidden { display: none; }
 .modal {
-  background: var(--white);
+  background: var(--bg2);
   border-radius: var(--radius);
   padding: 32px;
   width: 100%; max-width: 520px;
@@ -204,14 +204,14 @@ input, textarea, select { font: inherit; }
   position: relative;
   box-shadow: var(--shadow-md);
 }
-.modal h2 { margin-bottom: 20px; font-size: 18px; color: var(--gray-800); }
+.modal h2 { margin-bottom: 20px; font-size: 18px; color: var(--text); }
 .modal-close {
   position: absolute; top: 12px; right: 16px;
   background: none; border: none;
-  font-size: 22px; color: var(--gray-500);
+  font-size: 22px; color: var(--text2);
   line-height: 1;
 }
-.modal-close:hover { color: var(--gray-800); }
+.modal-close:hover { color: var(--text); }
 
 /* ========= Layout ========= */
 #app { min-height: 100vh; }
@@ -520,7 +520,7 @@ button.navbar-avatar:hover { opacity: 0.8; }
 .form-group label {
   display: block;
   font-size: 12px; font-weight: 600;
-  color: var(--gray-700);
+  color: var(--text2);
   margin-bottom: 4px;
   text-transform: uppercase;
   letter-spacing: .5px;
@@ -528,11 +528,11 @@ button.navbar-avatar:hover { opacity: 0.8; }
 .form-control {
   width: 100%;
   padding: 8px 12px;
-  border: 2px solid var(--gray-300);
+  border: 2px solid var(--border);
   border-radius: var(--radius);
   font-size: 14px;
-  color: var(--gray-800);
-  background: var(--white);
+  color: var(--text);
+  background: var(--bg);
   transition: border-color .15s;
   outline: none;
 }
@@ -724,16 +724,38 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   border: none; outline: none;
   font-size: 13px; flex: 1; min-width: 80px;
   padding: 2px 4px;
+  background: transparent;
+  color: var(--text);
 }
 .tags-input-box {
-  border: 2px solid var(--gray-300);
+  border: 2px solid var(--border);
   border-radius: var(--radius);
   padding: 6px 8px;
   cursor: text;
-  background: var(--white);
+  background: var(--bg);
   min-height: 38px;
+  position: relative;
 }
 .tags-input-box:focus-within { border-color: var(--blue); }
+.tags-suggest {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  z-index: 200;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.tags-suggest-item {
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text);
+}
+.tags-suggest-item:hover { background: var(--bg3); }
 
 /* ========= Board ========= */
 /* Banner image — shown only on the header strip, board canvas stays solid */
