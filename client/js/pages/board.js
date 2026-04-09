@@ -439,6 +439,26 @@ export async function renderBoard(app, params) {
           if (task) showTaskModal(bucket.id, task);
         }
       });
+      card.querySelector('.card-duplicate-btn')?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const task = tasks.find(t => t.id == card.dataset.id);
+        if (!task) return;
+        try {
+          const newTask = await api.createTask(bucket.id, {
+            description: task.description + '-Copy',
+            tags: task.tags || [],
+          });
+          const checklists = await api.getChecklists(task.id);
+          for (const item of checklists) {
+            await api.createChecklist(newTask.id, item.text);
+          }
+          await loadAll();
+          const freshTask = await api.getTask(newTask.id);
+          showTaskModal(bucket.id, freshTask);
+        } catch {
+          toast('Failed to duplicate task', 'error');
+        }
+      });
       card.querySelector('.card-delete-btn')?.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (!confirm('Delete this task?')) return;
@@ -592,6 +612,7 @@ export async function renderBoard(app, params) {
       <div class="card task-card ${t.completed_at ? 'task-done' : ''}" data-id="${t.id}">
         ${t.picture ? `<img class="card-thumb" src="${escHtml(t.picture)}" />` : ''}
         <div class="card-actions">
+          ${!t.completed_at ? `<button class="card-action-btn card-duplicate-btn" title="Duplicate">&#10697;</button>` : ''}
           ${!t.completed_at ? `<button class="card-action-btn card-edit-btn" title="Edit">&#9998;</button>` : ''}
           <button class="card-action-btn card-delete-btn" title="Delete">&#128465;</button>
         </div>
