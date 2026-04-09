@@ -167,9 +167,18 @@ export function showProjectModal(project = null, onSuccess = null) {
         <div id="p-tags-input"></div>
       </div>
       <div id="p-error" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button type="button" class="btn btn-secondary" id="p-cancel">Cancel</button>
-        <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Create Project'}</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        ${isEdit ? `
+          <label class="theme-toggle" style="font-size:13px;font-weight:500;color:var(--text)">
+            <input type="checkbox" id="p-risks-toggle" ${localStorage.getItem('orbit_risks_hidden_' + project.id) ? '' : 'checked'}>
+            <span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span>
+            Add risk bucket
+          </label>
+        ` : '<span></span>'}
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn btn-secondary" id="p-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Create Project'}</button>
+        </div>
       </div>
     </form>
   `;
@@ -206,6 +215,14 @@ export function showProjectModal(project = null, onSuccess = null) {
     try {
       if (isEdit) {
         await api.updateProject(project.id, fd);
+        const risksToggle = document.getElementById('p-risks-toggle');
+        if (risksToggle) {
+          if (risksToggle.checked) {
+            localStorage.removeItem('orbit_risks_hidden_' + project.id);
+          } else {
+            localStorage.setItem('orbit_risks_hidden_' + project.id, '1');
+          }
+        }
         toast('Project updated', 'success');
       } else {
         await api.createProject(fd);

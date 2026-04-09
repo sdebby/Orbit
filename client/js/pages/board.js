@@ -139,18 +139,23 @@ export async function renderBoard(app, params) {
     scroll.innerHTML = '';
 
     const filteredProjectRisks = filterItems(projectRisks);
-    const riskCol = createProjectRiskCol(filteredProjectRisks);
+    const risksHidden = !!localStorage.getItem(`orbit_risks_hidden_${projectId}`);
 
     // Insert columns in saved order (risks col position persisted per project)
     const savedRiskPos = parseInt(localStorage.getItem(`orbit_risks_pos_${projectId}`), 10);
 
-    buckets.forEach((bucket, i) => {
-      if (!isNaN(savedRiskPos) && i === savedRiskPos) scroll.appendChild(riskCol);
-      scroll.appendChild(createBucketCol(bucket));
-    });
-    // Append risk col at end if not yet inserted (no saved pos, or pos >= buckets.length)
-    if (isNaN(savedRiskPos) || savedRiskPos >= buckets.length) {
-      scroll.appendChild(riskCol);
+    if (!risksHidden) {
+      const riskCol = createProjectRiskCol(filteredProjectRisks);
+      buckets.forEach((bucket, i) => {
+        if (!isNaN(savedRiskPos) && i === savedRiskPos) scroll.appendChild(riskCol);
+        scroll.appendChild(createBucketCol(bucket));
+      });
+      // Append risk col at end if not yet inserted (no saved pos, or pos >= buckets.length)
+      if (isNaN(savedRiskPos) || savedRiskPos >= buckets.length) {
+        scroll.appendChild(riskCol);
+      }
+    } else {
+      buckets.forEach(bucket => scroll.appendChild(createBucketCol(bucket)));
     }
 
     // Add Bucket — full-width board column
