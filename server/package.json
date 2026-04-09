@@ -8,6 +8,7 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
+    "brace-expansion": ">=5.0.5",
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",
     "express": "^4.19.2",
@@ -17,14 +18,13 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.1.1",
     "node-sqlite3-wasm": "^0.8.19",
-    "nodemailer": "^8.0.4",
-	"picomatch": ">=2.3.2",
-	"brace-expansion": ">=5.0.5"
+    "nodemailer": "^8.0.5",
+    "picomatch": ">=2.3.2"
   },
   "devDependencies": {
+    "brace-expansion": ">=5.0.5",
     "nodemon": "^3.1.0",
-	"picomatch": ">=2.3.2",
-	"brace-expansion": ">=5.0.5"
+    "picomatch": ">=2.3.2"
   },
   "overrides": {
     "path-to-regexp": "0.1.x",
