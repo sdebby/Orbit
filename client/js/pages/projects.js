@@ -326,9 +326,13 @@ export function setupNavbar() {
     if (dropdown) dropdown.hidden = true;
     navigate('/profile');
   });
-  document.getElementById('nav-templates')?.addEventListener('click', () => {
+  document.getElementById('nav-templates')?.addEventListener('click', async () => {
     if (dropdown) dropdown.hidden = true;
-    navigate('/templates');
+    try {
+      const templates = await api.getTemplates();
+      if (!templates.length) { toast('No templates available', 'info'); return; }
+      navigate('/templates');
+    } catch { navigate('/templates'); }
   });
   document.getElementById('nav-admin')?.addEventListener('click', () => {
     if (dropdown) dropdown.hidden = true;
