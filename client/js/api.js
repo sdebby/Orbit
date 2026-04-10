@@ -95,6 +95,12 @@ export const api = {
   updateChecklist: (id, data) => request('PUT', `/checklists/${id}`, data),
   deleteChecklist: (id) => request('DELETE', `/checklists/${id}`),
 
+  // Templates
+  getTemplates:   ()       => request('GET',    '/templates'),
+  createTemplate: (data)   => request('POST',   '/templates', data),
+  updateTemplate: (id, data) => request('PUT',  `/templates/${id}`, data),
+  deleteTemplate: (id)     => request('DELETE', `/templates/${id}`),
+
   // Risks
   getRisks: (projectId) => request('GET', `/projects/${projectId}/risks`),
   createRisk: (projectId, data) => data instanceof FormData

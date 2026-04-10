@@ -73,6 +73,16 @@ _db.exec(`
     FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS bucket_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    bucket_data TEXT NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch()),
+    UNIQUE(user_id, name),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS risks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     bucket_id INTEGER NOT NULL,

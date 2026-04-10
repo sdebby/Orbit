@@ -804,7 +804,16 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   gap: 12px;
   flex-shrink: 0;
 }
-.board-header h2 { font-size: 18px; font-weight: 700; }
+.board-header h2 { font-size: 18px; font-weight: 700; white-space: nowrap; }
+.board-project-desc {
+  font-size: 13px;
+  color: var(--gray-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+.board-container.has-bg .board-project-desc { color: rgba(255,255,255,0.8); }
 .board-header .back-link {
   color: var(--gray-600);
   font-size: 13px;
@@ -1243,6 +1252,9 @@ details.done-tasks-section[open] > .done-tasks-toggle::before {
   flex-shrink: 0;
   width: 280px;
   align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 .add-col-btn {
   display: flex;
@@ -1265,6 +1277,16 @@ details.done-tasks-section[open] > .done-tasks-toggle::before {
   background: var(--gray-300);
   border-color: var(--blue-light);
   color: var(--text);
+}
+
+.add-col-btn--template {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.add-col-btn--template:hover {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
 }
 
 .col-empty-state {

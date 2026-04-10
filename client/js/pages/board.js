@@ -69,8 +69,9 @@ export async function renderBoard(app, params) {
         <div class="board-header">
           ${breadcrumbHtml()}
           <h2 id="board-title">Loading…</h2>
-          <button class="btn btn-secondary btn-sm" id="edit-project-btn" style="display:none">&#9998; Edit Project</button>
+          <span id="board-project-desc" class="board-project-desc"></span>
           <span class="navbar-spacer"></span>
+          <button class="btn btn-secondary btn-sm" id="edit-project-btn" style="display:none">&#9998; Edit Project</button>
           <input type="search" class="form-control" id="board-search" placeholder="Search tasks &amp; risks…" style="max-width:220px" />
         </div>
         <div class="board-scroll" id="board-scroll">
@@ -89,6 +90,8 @@ export async function renderBoard(app, params) {
     try {
       [project, buckets] = await Promise.all([api.getProject(projectId), api.getBuckets(projectId)]);
       document.getElementById('board-title').textContent = project.title;
+      const descEl = document.getElementById('board-project-desc');
+      if (descEl) descEl.textContent = project.description || '';
 
       // Show and wire Edit Project button
       const editBtn = document.getElementById('edit-project-btn');
@@ -158,14 +161,19 @@ export async function renderBoard(app, params) {
       buckets.forEach(bucket => scroll.appendChild(createBucketCol(bucket)));
     }
 
-    // Add Bucket — full-width board column
+    // Add Bucket + Add template bucket — stacked in one column
     const addBucketCol = document.createElement('div');
     addBucketCol.className = 'add-col';
     const addBucketBtn = document.createElement('button');
     addBucketBtn.className = 'add-col-btn';
     addBucketBtn.textContent = '+ Add Bucket';
     addBucketBtn.onclick = () => showBucketModal();
+    const tmplBtn = document.createElement('button');
+    tmplBtn.className = 'add-col-btn add-col-btn--template';
+    tmplBtn.textContent = '+ Add template bucket';
+    tmplBtn.onclick = () => showTemplatePicker(tmplBtn);
     addBucketCol.appendChild(addBucketBtn);
+    addBucketCol.appendChild(tmplBtn);
     scroll.appendChild(addBucketCol);
 
     makeBoardSortable(scroll);
@@ -1034,6 +1042,98 @@ export async function renderBoard(app, params) {
     };
   }
 
+  // ---- Bucket templates ----
+  function showSaveTemplateModal(bucket) {
+    showModal(`
+      <h2>Save as template</h2>
+      <form id="tmpl-form">
+        <div class="form-group">
+          <label>Template name</label>
+          <input class="form-control" id="tmpl-name" required />
+        </div>
+        <div id="tmpl-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button type="button" class="btn btn-secondary" id="tmpl-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    `);
+    document.getElementById('tmpl-cancel').onclick = hideModal;
+    document.getElementById('tmpl-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('tmpl-name').value.trim();
+      if (!name) return;
+      const tasks = (itemsByBucket[bucket.id]?.tasks || []).map(t => ({
+        description: t.description,
+        priority: t.priority || 'Medium',
+        tags: t.tags || [],
+        checklists: (t.checklistItems || []).map(c => c.text),
+      }));
+      const bucket_data = { title: bucket.title, tasks };
+      const errEl = document.getElementById('tmpl-err');
+      try {
+        await api.createTemplate({ name, bucket_data: JSON.stringify(bucket_data) });
+        hideModal();
+        toast('Template saved', 'success');
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+      }
+    };
+  }
+
+  async function showTemplatePicker(anchorBtn) {
+    document.querySelectorAll('.dropdown').forEach(d => d.remove());
+    const menu = document.createElement('div');
+    menu.className = 'dropdown';
+    menu.innerHTML = `<div class="dropdown-item" style="opacity:.6">Loading…</div>`;
+    document.body.appendChild(menu);
+    const rect = anchorBtn.getBoundingClientRect();
+    menu.style.top = `${rect.bottom + window.scrollY + 4}px`;
+    menu.style.left = `${rect.left + window.scrollX}px`;
+
+    let templates;
+    try { templates = await api.getTemplates(); }
+    catch (err) {
+      menu.innerHTML = `<div class="dropdown-item" style="color:var(--red)">${escHtml(err.message)}</div>`;
+      setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 0);
+      return;
+    }
+    if (!templates.length) {
+      menu.innerHTML = `<div class="dropdown-item" style="opacity:.6">No templates yet</div>`;
+    } else {
+      menu.innerHTML = templates.map((t, i) =>
+        `<button class="dropdown-item" data-idx="${i}">${escHtml(t.name)}</button>`
+      ).join('');
+      menu.querySelectorAll('[data-idx]').forEach((btn, i) => {
+        btn.onclick = () => { menu.remove(); applyTemplate(templates[i]); };
+      });
+    }
+    setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 0);
+  }
+
+  async function applyTemplate(template) {
+    const data = typeof template.bucket_data === 'string'
+      ? JSON.parse(template.bucket_data) : template.bucket_data;
+    try {
+      const bucket = await api.createBucket(projectId, { title: data.title, description: '', color: '' });
+      for (const taskDef of (data.tasks || [])) {
+        const task = await api.createTask(bucket.id, {
+          description: taskDef.description,
+          priority: taskDef.priority || 'Medium',
+          tags: taskDef.tags || [],
+        });
+        for (const text of (taskDef.checklists || [])) {
+          await api.createChecklist(task.id, text);
+        }
+      }
+      toast('Template applied', 'success');
+      await loadAll();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+
   // ---- Bucket dropdown menu ----
   function showBucketMenu(btn, bucket) {
     document.querySelectorAll('.dropdown').forEach(d => d.remove());
@@ -1041,6 +1141,7 @@ export async function renderBoard(app, params) {
     menu.className = 'dropdown';
     menu.innerHTML = `
       <button class="dropdown-item" id="dm-edit">Edit Bucket</button>
+      <button class="dropdown-item" id="dm-template">Add to template</button>
       <button class="dropdown-item danger" id="dm-delete">Delete Bucket</button>
     `;
     document.body.appendChild(menu);
@@ -1049,6 +1150,7 @@ export async function renderBoard(app, params) {
     menu.style.left = `${rect.left + window.scrollX}px`;
 
     menu.querySelector('#dm-edit').onclick = () => { menu.remove(); showBucketModal(bucket); };
+    menu.querySelector('#dm-template').onclick = () => { menu.remove(); showSaveTemplateModal(bucket); };
     menu.querySelector('#dm-delete').onclick = async () => {
       menu.remove();
       if (!confirm('Delete this bucket?')) return;

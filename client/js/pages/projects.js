@@ -286,6 +286,7 @@ export function navbarHtml({ hideProfile = false } = {}) {
         <button class="navbar-avatar" id="nav-avatar-btn" title="Account" aria-haspopup="true" aria-expanded="false">${avatarInner}</button>
         <div class="user-dropdown" id="user-dropdown" hidden>
           ${profileItem}
+          <button class="dropdown-item" id="nav-templates">Edit templates</button>
           ${adminItem}
           <div class="dropdown-divider"></div>
           <button class="dropdown-item dropdown-item-danger" id="nav-logout">Sign out</button>
@@ -324,6 +325,10 @@ export function setupNavbar() {
   document.getElementById('nav-profile')?.addEventListener('click', () => {
     if (dropdown) dropdown.hidden = true;
     navigate('/profile');
+  });
+  document.getElementById('nav-templates')?.addEventListener('click', () => {
+    if (dropdown) dropdown.hidden = true;
+    navigate('/templates');
   });
   document.getElementById('nav-admin')?.addEventListener('click', () => {
     if (dropdown) dropdown.hidden = true;

@@ -107,6 +107,8 @@ app.use('/api/projects/:projectId/risks', require('./routes/risks'));
 app.use('/api/profile', profileLimiter, require('./routes/profile'));
 app.use('/api/admin', require('./routes/admin'));
 
+app.use('/api/templates', require('./routes/templates'));
+
 // Standalone bucket/task/risk/checklist routes (without prefix context)
 app.use('/api/buckets', require('./routes/buckets'));
 app.use('/api/tasks', require('./routes/tasks'));
