@@ -200,7 +200,7 @@
 - Each bucket has a **storyboard textarea** (editable inline, saved on blur); shows a ✏ pencil icon on hover and a "Saved ✓" indicator after a successful save
 - Each bucket has an optional **color** applied to the column header
 - **Task completion**: checkbox marks task done with timestamp; done tasks move to a collapsible "✓ N Done" section at the bottom of each column. The summary shows a ▶ chevron (via CSS `::before`) that rotates 90° when open. The completed task circle is filled green; hovering turns it red to signal "click to undo".
-- **Project-level Risks column**: always shown as a dedicated board column, even when empty (shows an empty-state message); positioned at the end of the scroll by default, draggable to any position
+- **Project-level Risks column**: shown as a dedicated board column when enabled; positioned at the end of the scroll by default, draggable to any position. The column can be hidden per-project via the **Add risk bucket** toggle in the Edit Project modal — preference stored in `localStorage` as `orbit_risks_hidden_<projectId>`; risk data is never deleted when hidden and is restored when re-enabled
 - `+ Add Bucket` renders as a full-width (280px) dashed board column at the far right — never a narrow or stacked button
 - **Search**: filters tasks and risks by description or tag in real-time
 - **Board banner**: project picture is shown as a banner strip on the board header only — not as a full-page background. The board canvas always uses a solid colour for readability. A dark gradient overlay (`::before`) ensures header text remains legible over any image.
@@ -210,6 +210,7 @@
 - **Due date**: always shown on the card if set, using `dueDateClass()` from `utils.js` for color-coding: default grey pill (future), `.due-soon` amber pill (≤2 days), `.overdue` red pill (past). On completed tasks, the urgency class is suppressed (shown grey).
 - **Priority and badge style**: priority badge (`.priority.Low/Medium/High`) and checklist progress badge (`.checklist-progress`) use the same pill style — `font-size: 11px`, `padding: 2px 6px`, `border-radius: 4px`, with a background fill.
 - **Inline checklists**: tasks with checklist items show a `<details class="card-checklist-section">` collapsible inside the card. The `<summary>` is the progress badge (e.g. "2/3"). The body contains `.card-cl-active` (red-tinted) for pending items and a nested `<details class="card-cl-done-section">` (green-tinted, **collapsed by default** with ▶ chevron) for done items. Checklists are pre-loaded in `loadAll()` and mounted via `mountCardChecklists(card, task)`. Toggling an item calls `api.updateChecklist` and re-renders in-place — no full board reload. The summary click has `stopPropagation` to prevent the task modal from opening.
+- **Duplicate button** (`.card-duplicate-btn`, `&#10697;`): shown on hover for active (non-completed) tasks, before the edit and delete buttons. Creates a new task in the same bucket with description + `"-Copy"`, same tags, and all checklist items copied (priority, due date, and picture are not copied). After creation, reloads the board and opens the edit modal on the new task.
 
 ### Projects Page
 - Card grid of all user projects
@@ -275,6 +276,7 @@
 - **CTA buttons**: `Create [X]` for new entities (Create Task, Create Risk, Create Bucket, Create Project); `Save` for edits — never `Save Changes` or `Add [X]`.
 - **Destructive actions** (e.g. Delete Bucket) belong exclusively in the context menu (⋮ dropdown), never inside an edit modal.
 - **Image/attachment fields** use the label `Image` everywhere — never `Photo`, `Picture`, or `Background Picture`.
+- **Edit Project modal** (edit mode only): includes an **Add risk bucket** toggle (`.theme-toggle` pattern, reusing existing CSS) positioned in the footer row left of the Cancel/Save buttons. Default is ON (checked). The toggle reads/writes `localStorage` key `orbit_risks_hidden_<projectId>` on Save — it does not affect the API call.
 
 ### Interaction Patterns
 - **One entry point per concept**: each action (add task, add risk, add bucket) has exactly one trigger in the UI. Do not add shortcuts or duplicate buttons.
@@ -286,7 +288,7 @@
 
 ### Empty States
 - Board columns with no items show a `.col-empty-state` div with brief instructional text (e.g. "No risks yet. Click **+ Risk** to track one.").
-- The Risks column is always rendered, regardless of whether risks exist — the empty state is the signal, not the column's absence.
+- The Risks column is rendered whenever it is enabled (the "Add risk bucket" toggle is ON) — the empty state is the signal when no risks exist. When the toggle is OFF, the column is omitted entirely.
 - Projects grid uses `.empty-state` when no projects exist.
 
 ### Toast Notifications
