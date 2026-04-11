@@ -8,6 +8,38 @@ function stripHtmlTags(str) {
   return str.replace(/<\/?[a-zA-Z][^>]*>/g, '');
 }
 
+const BUCKET_DATA_MAX_BYTES = 50 * 1024; // 50 KB
+
+// Sanitize and validate bucket_data structure, stripping HTML from all text fields.
+// Returns the sanitized JSON string, or null if the structure is invalid.
+function sanitizeBucketData(raw) {
+  let parsed;
+  try { parsed = typeof raw === 'string' ? JSON.parse(raw) : raw; }
+  catch { return null; }
+
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+
+  const title = stripHtmlTags(String(parsed.title || '').trim()).slice(0, 100);
+  const tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+
+  const sanitizedTasks = tasks.slice(0, 200).map(t => {
+    if (typeof t !== 'object' || t === null) return null;
+    const description = stripHtmlTags(String(t.description || '').trim()).slice(0, 2000);
+    if (!description) return null;
+    const validPriorities = ['Low', 'Medium', 'High'];
+    const priority = validPriorities.includes(t.priority) ? t.priority : 'Medium';
+    const tags = Array.isArray(t.tags)
+      ? t.tags.filter(tag => typeof tag === 'string').map(tag => stripHtmlTags(tag).slice(0, 50)).slice(0, 20)
+      : [];
+    const checklists = Array.isArray(t.checklists)
+      ? t.checklists.filter(c => typeof c === 'string').map(c => stripHtmlTags(c.trim()).slice(0, 500)).filter(Boolean).slice(0, 100)
+      : [];
+    return { description, priority, tags, checklists };
+  }).filter(Boolean);
+
+  return JSON.stringify({ title, tasks: sanitizedTasks });
+}
+
 // GET /api/templates
 router.get('/', requireAuth, (req, res) => {
   const rows = db.prepare(
@@ -21,12 +53,16 @@ router.post('/', requireAuth, (req, res) => {
   const { name, bucket_data } = req.body;
   if (!name || !String(name).trim()) return res.status(400).json({ error: 'Name is required' });
   if (!bucket_data) return res.status(400).json({ error: 'bucket_data is required' });
-  try { JSON.parse(bucket_data); } catch { return res.status(400).json({ error: 'bucket_data must be valid JSON' }); }
+  if (Buffer.byteLength(String(bucket_data)) > BUCKET_DATA_MAX_BYTES) {
+    return res.status(400).json({ error: 'Template data too large' });
+  }
+  const sanitized = sanitizeBucketData(bucket_data);
+  if (sanitized === null) return res.status(400).json({ error: 'bucket_data must be valid JSON' });
 
   try {
     const result = db.prepare(
       'INSERT INTO bucket_templates (user_id, name, bucket_data) VALUES (?, ?, ?)'
-    ).run(req.user.userId, stripHtmlTags(String(name).trim()), bucket_data);
+    ).run(req.user.userId, stripHtmlTags(String(name).trim()), sanitized);
     const row = db.prepare('SELECT id, name, bucket_data FROM bucket_templates WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(row);
   } catch (err) {
