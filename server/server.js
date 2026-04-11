@@ -11,8 +11,8 @@ const ALLOWED_ORIGIN = process.env.APP_URL || 'http://localhost:3000';
 
 // Security headers
 app.use(helmet({
-  crossOriginResourcePolicy: false,
-  hsts: false,
+  crossOriginResourcePolicy: true,
+  hsts: true,
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
@@ -34,13 +34,16 @@ app.use(cors({
   credentials: true,
 }));
 
-// CSRF defense: reject state-changing requests whose Origin doesn't match
+// CSRF defense: reject state-changing requests whose Origin/Referer doesn't match.
+// Bearer-token requests are exempt — CSRF only applies to cookie-based auth.
 app.use((req, res, next) => {
   if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+    const authHeader = req.get('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) return next();
+
     const origin = req.get('Origin') || req.get('Referer') || '';
-    if (origin && !origin.startsWith(ALLOWED_ORIGIN)) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
+    if (!origin) return res.status(403).json({ error: 'Forbidden' });
+    if (!origin.startsWith(ALLOWED_ORIGIN)) return res.status(403).json({ error: 'Forbidden' });
   }
   next();
 });
