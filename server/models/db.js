@@ -134,6 +134,7 @@ try {
 try { _db.exec('ALTER TABLE users ADD COLUMN token_version INTEGER DEFAULT 0'); } catch {}
 try { _db.exec('ALTER TABLE projects ADD COLUMN favorite INTEGER DEFAULT 0'); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN last_active INTEGER'); } catch {}
+try { _db.exec("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'"); } catch {}
 
 // Migrate risks from bucket-level to project-level
 try {

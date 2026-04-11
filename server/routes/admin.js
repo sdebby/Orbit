@@ -33,7 +33,7 @@ router.get('/users', (req, res) => {
 
   const total = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
   const users = db.prepare(
-    'SELECT id, email, username, profile_picture, created_at, last_active, email_verified FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?'
+    'SELECT id, email, username, profile_picture, created_at, last_active, email_verified, status FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?'
   ).all(limit, offset);
 
   const mapped = users.map(u => ({
@@ -44,6 +44,7 @@ router.get('/users', (req, res) => {
     createdAt: u.created_at,
     lastActive: u.last_active,
     emailVerified: u.email_verified,
+    status: u.status || 'active',
   }));
 
   // Filter by search query (email or username) in JS since emails are encrypted
@@ -58,7 +59,7 @@ router.get('/users', (req, res) => {
 router.get('/users/:id', (req, res) => {
   const targetId = parseInt(req.params.id);
   const user = db.prepare(
-    'SELECT id, email, username, profile_picture, created_at, last_active, email_verified FROM users WHERE id = ?'
+    'SELECT id, email, username, profile_picture, created_at, last_active, email_verified, status FROM users WHERE id = ?'
   ).get(targetId);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -78,6 +79,7 @@ router.get('/users/:id', (req, res) => {
     createdAt: user.created_at,
     lastActive: user.last_active,
     emailVerified: user.email_verified,
+    status: user.status || 'active',
     projectCount,
     taskCount,
     riskCount,
@@ -109,6 +111,42 @@ router.post('/users/bulk-delete', (req, res) => {
   const placeholders = targetIds.map(() => '?').join(',');
   const result = db.prepare(`DELETE FROM users WHERE id IN (${placeholders})`).run(...targetIds);
   res.json({ message: `${result.changes} user(s) deleted` });
+});
+
+// POST /api/admin/users/bulk-status
+router.post('/users/bulk-status', (req, res) => {
+  const { ids, status } = req.body;
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'No users selected' });
+  const validStatuses = ['active', 'deactivated', 'banned'];
+  if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+
+  const targetIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id) && id !== req.user.userId);
+  if (!targetIds.length) return res.status(400).json({ error: 'Cannot modify your own account' });
+
+  const placeholders = targetIds.map(() => '?').join(',');
+  // Bump token_version to immediately invalidate sessions for affected users
+  db.prepare(`UPDATE users SET status = ?, token_version = token_version + 1 WHERE id IN (${placeholders})`)
+    .run(status, ...targetIds);
+  res.json({ message: `${targetIds.length} user(s) set to ${status}` });
+});
+
+// POST /api/admin/users/:id/status
+router.post('/users/:id/status', (req, res) => {
+  const targetId = parseInt(req.params.id);
+  if (targetId === req.user.userId) {
+    return res.status(400).json({ error: 'Cannot change your own account status' });
+  }
+
+  const { status } = req.body;
+  const validStatuses = ['active', 'deactivated', 'banned'];
+  if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+
+  const user = db.prepare('SELECT id, token_version FROM users WHERE id = ?').get(targetId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const newVersion = (user.token_version || 0) + 1;
+  db.prepare('UPDATE users SET status = ?, token_version = ? WHERE id = ?').run(status, newVersion, targetId);
+  res.json({ message: `User ${status}`, status });
 });
 
 // POST /api/admin/users/:id/reset-password

@@ -17,6 +17,8 @@ const adminApi = {
   deleteUser: (id) => request('DELETE', `/admin/users/${id}`),
   bulkDeleteUsers: (ids) => request('POST', '/admin/users/bulk-delete', { ids }),
   resetPassword: (id) => request('POST', `/admin/users/${id}/reset-password`),
+  setUserStatus: (id, status) => request('POST', `/admin/users/${id}/status`, { status }),
+  bulkSetStatus: (ids, status) => request('POST', '/admin/users/bulk-status', { ids, status }),
 };
 
 let searchTimeout = null;
@@ -60,6 +62,9 @@ export async function renderAdmin(app) {
           </div>
           <div class="admin-bulk-bar" id="admin-bulk-bar" style="display:none">
             <span id="admin-selected-count">0 selected</span>
+            <button class="btn btn-sm btn-outline" id="admin-bulk-activate">Activate</button>
+            <button class="btn btn-sm admin-btn-deactivate" id="admin-bulk-deactivate">Deactivate</button>
+            <button class="btn btn-sm admin-btn-ban" id="admin-bulk-ban">Ban</button>
             <button class="btn btn-sm btn-danger" id="admin-bulk-delete">Delete Selected</button>
             <button class="btn btn-sm btn-outline" id="admin-bulk-clear">Clear Selection</button>
           </div>
@@ -96,6 +101,9 @@ export async function renderAdmin(app) {
     searchTimeout = setTimeout(() => loadUsers(e.target.value), 300);
   });
 
+  document.getElementById('admin-bulk-activate').addEventListener('click', () => bulkSetStatus('active'));
+  document.getElementById('admin-bulk-deactivate').addEventListener('click', () => bulkSetStatus('deactivated'));
+  document.getElementById('admin-bulk-ban').addEventListener('click', () => bulkSetStatus('banned'));
   document.getElementById('admin-bulk-delete').addEventListener('click', bulkDelete);
   document.getElementById('admin-bulk-clear').addEventListener('click', () => {
     selectedIds.clear();
@@ -166,6 +174,11 @@ function formatRelative(epoch) {
   return new Date(epoch * 1000).toLocaleDateString();
 }
 
+function statusBadgeHtml(status) {
+  const s = status || 'active';
+  return `<span class="admin-status-badge admin-status-${escHtml(s)}">${escHtml(s)}</span>`;
+}
+
 function formatDateShort(epoch) {
   if (!epoch) return '—';
   return new Date(epoch * 1000).toLocaleDateString();
@@ -191,7 +204,7 @@ function renderUsersTable(el, users) {
           <th>Registered</th>
           <th>Last Active</th>
           <th>Verified</th>
-          <th>Actions</th>
+          <th>Status</th>
         </tr>
       </thead>
       <tbody>
@@ -212,13 +225,7 @@ function renderUsersTable(el, users) {
               <td>${formatDateShort(u.createdAt)}</td>
               <td>${formatRelative(u.lastActive)}</td>
               <td>${u.emailVerified ? '<span class="admin-verified">&#10003;</span>' : '<span class="admin-unverified">&#10007;</span>'}</td>
-              <td class="admin-actions">
-                ${isSelf
-                  ? `<span class="admin-self-lock">&#128274; Your account</span>`
-                  : `<button class="btn btn-sm btn-outline admin-reset-btn" data-id="${u.id}" data-email="${escHtml(u.email || '')}">Send Reset Email</button>
-                     <button class="btn btn-sm btn-danger admin-delete-btn" data-id="${u.id}" data-email="${escHtml(u.email || '')}">Delete</button>`
-                }
-              </td>
+              <td>${statusBadgeHtml(u.status)}</td>
             </tr>
           `;
         }).join('')}
@@ -249,20 +256,14 @@ function renderUsersTable(el, users) {
     });
   });
 
-  el.querySelectorAll('.admin-reset-btn').forEach(btn => {
-    btn.addEventListener('click', () => sendResetEmail(btn.dataset.id, btn.dataset.email));
-  });
-
-  el.querySelectorAll('.admin-delete-btn').forEach(btn => {
-    btn.addEventListener('click', () => deleteUser(btn.dataset.id, btn.dataset.email));
-  });
-
-  // Row click → user detail drawer (skip clicks on checkboxes, buttons, or the cb column)
+  // Row click → user detail drawer (skip clicks on checkboxes or the cb column)
   el.querySelectorAll('tbody tr').forEach((tr, i) => {
     const user = users[i];
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', (e) => {
-      if (e.target.closest('button, input, .admin-cb-col')) return;
+      if (e.target.closest('input, .admin-cb-col')) return;
+      el.querySelectorAll('tbody tr').forEach(r => r.classList.remove('admin-row-selected'));
+      tr.classList.add('admin-row-selected');
       openDrawer(user);
     });
   });
@@ -316,6 +317,7 @@ async function deleteUser(userId, email) {
 function closeDrawer() {
   document.getElementById('admin-drawer')?.classList.remove('open');
   document.getElementById('admin-drawer-backdrop')?.classList.remove('open');
+  document.querySelectorAll('.admin-row-selected').forEach(r => r.classList.remove('admin-row-selected'));
 }
 
 async function openDrawer(user) {
@@ -343,6 +345,7 @@ async function openDrawer(user) {
       <dt>Registered</dt><dd>${formatDateShort(user.createdAt)}</dd>
       <dt>Last Active</dt><dd>${formatRelative(user.lastActive)}</dd>
       <dt>Email Verified</dt><dd>${user.emailVerified ? '<span class="admin-verified">&#10003; Yes</span>' : '<span class="admin-unverified">&#10007; No</span>'}</dd>
+      <dt>Status</dt><dd>${statusBadgeHtml(user.status)}</dd>
       <dt>Projects</dt><dd id="drawer-projects"><span class="spinner" style="width:12px;height:12px"></span></dd>
       <dt>Tasks</dt><dd id="drawer-tasks"><span class="spinner" style="width:12px;height:12px"></span></dd>
       <dt>Risks</dt><dd id="drawer-risks"><span class="spinner" style="width:12px;height:12px"></span></dd>
@@ -350,6 +353,9 @@ async function openDrawer(user) {
     ${isSelf ? `<p class="admin-drawer-self-note">&#128274; You cannot modify your own account.</p>` : `
     <div class="admin-drawer-actions">
       <button class="btn btn-outline btn-sm" id="drawer-reset-btn">Send Reset Email</button>
+      ${(user.status || 'active') !== 'active' ? `<button class="btn btn-sm admin-btn-activate" id="drawer-activate-btn">Activate Account</button>` : ''}
+      ${(user.status || 'active') !== 'deactivated' ? `<button class="btn btn-sm admin-btn-deactivate" id="drawer-deactivate-btn">Deactivate Account</button>` : ''}
+      ${(user.status || 'active') !== 'banned' ? `<button class="btn btn-sm admin-btn-ban" id="drawer-ban-btn">Ban Account</button>` : ''}
       <button class="btn btn-danger btn-sm" id="drawer-delete-btn">Delete User</button>
     </div>`}
   `;
@@ -361,6 +367,18 @@ async function openDrawer(user) {
   document.getElementById('drawer-reset-btn')?.addEventListener('click', () => {
     closeDrawer();
     sendResetEmail(user.id, user.email);
+  });
+  document.getElementById('drawer-activate-btn')?.addEventListener('click', () => {
+    closeDrawer();
+    setStatus(user.id, user.email, 'active');
+  });
+  document.getElementById('drawer-deactivate-btn')?.addEventListener('click', () => {
+    closeDrawer();
+    setStatus(user.id, user.email, 'deactivated');
+  });
+  document.getElementById('drawer-ban-btn')?.addEventListener('click', () => {
+    closeDrawer();
+    setStatus(user.id, user.email, 'banned');
   });
   document.getElementById('drawer-delete-btn')?.addEventListener('click', () => {
     closeDrawer();
@@ -381,6 +399,31 @@ async function openDrawer(user) {
       const el = document.getElementById(id);
       if (el) el.textContent = '—';
     });
+  }
+}
+
+async function setStatus(userId, email, status) {
+  try {
+    await adminApi.setUserStatus(userId, status);
+    const msgs = { active: 'Account activated', deactivated: 'Account deactivated', banned: 'Account banned' };
+    toast(msgs[status] || 'Status updated');
+    loadUsers(document.getElementById('admin-search')?.value || '');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function bulkSetStatus(status) {
+  if (!selectedIds.size) return;
+  const labels = { active: 'activate', deactivated: 'deactivate', banned: 'ban' };
+  if (!confirm(`${labels[status] ? labels[status].charAt(0).toUpperCase() + labels[status].slice(1) : 'Update'} ${selectedIds.size} user(s)?`)) return;
+  try {
+    const result = await adminApi.bulkSetStatus([...selectedIds], status);
+    toast(result.message);
+    selectedIds.clear();
+    loadUsers(document.getElementById('admin-search')?.value || '');
+  } catch (err) {
+    toast(err.message, 'error');
   }
 }
 

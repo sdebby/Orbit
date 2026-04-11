@@ -24,10 +24,16 @@ function requireAuth(req, res, next) {
     req.token = token;
 
     // Verify token_version matches — rejects tokens issued before a password reset/change
-    const row = db.prepare('SELECT token_version FROM users WHERE id = ?').get(req.user.userId);
+    const row = db.prepare('SELECT token_version, status FROM users WHERE id = ?').get(req.user.userId);
     if (!row) return res.status(401).json({ error: 'User not found' });
     if ((req.user.tokenVersion || 0) !== (row.token_version || 0)) {
       return res.status(401).json({ error: 'Session expired — please sign in again' });
+    }
+    if (row.status === 'banned') {
+      return res.status(403).json({ error: 'Your account has been banned' });
+    }
+    if (row.status === 'deactivated') {
+      return res.status(403).json({ error: 'Your account has been deactivated' });
     }
 
     db.prepare('UPDATE users SET last_active = ? WHERE id = ?').run(Math.floor(Date.now() / 1000), req.user.userId);
