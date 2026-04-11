@@ -131,6 +131,7 @@ try {
   }
 } catch (e) { console.error('Email encryption migration:', e.message); }
 
+try { _db.exec('ALTER TABLE users ADD COLUMN token_version INTEGER DEFAULT 0'); } catch {}
 try { _db.exec('ALTER TABLE projects ADD COLUMN favorite INTEGER DEFAULT 0'); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN last_active INTEGER'); } catch {}
 

@@ -48,7 +48,10 @@ router.post('/register', async (req, res) => {
 });
 
 // POST /api/auth/login
+// MIN_LOGIN_MS ensures constant-time response to prevent user enumeration via timing
+const MIN_LOGIN_MS = 300;
 router.post('/login', async (req, res) => {
+  const start = Date.now();
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
 
@@ -56,13 +59,20 @@ router.post('/login', async (req, res) => {
   const emailHash = sha512(emailNorm);
 
   const user = db.prepare('SELECT * FROM users WHERE email_hash = ?').get(emailHash);
-  if (!user) return res.status(401).json({ error: 'Invalid email or password' });
 
-  const valid = await verifyPassword(password, user.password_hash);
-  if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
+  // Always run a password verification to keep timing constant even when user doesn't exist
+  const dummyHash = '$argon2id$v=19$m=65536,t=3,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+  const valid = await verifyPassword(password, user ? user.password_hash : dummyHash);
+
+  function delayedResponse(status, body) {
+    const elapsed = Date.now() - start;
+    setTimeout(() => res.status(status).json(body), Math.max(0, MIN_LOGIN_MS - elapsed));
+  }
+
+  if (!user || !valid) return delayedResponse(401, { error: 'Invalid email or password' });
 
   if (!user.email_verified) {
-    return res.status(403).json({ error: 'EMAIL_NOT_VERIFIED' });
+    return delayedResponse(403, { error: 'EMAIL_NOT_VERIFIED' });
   }
 
   const adminHash = getAdminEmailHash();
@@ -70,14 +80,17 @@ router.post('/login', async (req, res) => {
 
   // Clear any pre-existing session cookie before issuing a new one (session fixation defense)
   res.clearCookie('orbit_token', { path: '/', sameSite: 'strict' });
-  const token = signToken(user.id);
+  const token = signToken(user.id, user.token_version);
   res.cookie('orbit_token', token, {
     httpOnly: true,
     sameSite: 'strict',
     maxAge: 7 * 24 * 60 * 60 * 1000,
     secure: process.env.NODE_ENV === 'production',
   });
-  res.json({ userId: user.id, email: decryptEmail(user.email), username: user.username, profilePicture: user.profile_picture, isAdmin });
+  const elapsed = Date.now() - start;
+  setTimeout(() => {
+    res.json({ userId: user.id, email: decryptEmail(user.email), username: user.username, profilePicture: user.profile_picture, isAdmin });
+  }, Math.max(0, MIN_LOGIN_MS - elapsed));
 });
 
 // GET /api/auth/verify-email/:token
@@ -154,23 +167,25 @@ router.post('/reset-password/:token', async (req, res) => {
   }
 
   const passwordHash = await hashPassword(password);
-  db.prepare('UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?')
-    .run(passwordHash, user.id);
+  const newVersion = (user.token_version || 0) + 1;
+  db.prepare('UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL, token_version = ? WHERE id = ?')
+    .run(passwordHash, newVersion, user.id);
 
   res.json({ message: 'Password updated successfully' });
 });
 
 // GET /api/auth/me
 router.get('/me', requireAuth, (req, res) => {
-  const user = db.prepare('SELECT id, email, email_hash, username, profile_picture, created_at FROM users WHERE id = ?').get(req.user.userId);
+  const user = db.prepare('SELECT id, email, email_hash, username, profile_picture, created_at, token_version FROM users WHERE id = ?').get(req.user.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const isAdmin = process.env.SUPER_ADMIN_EMAIL
     ? user.email_hash === sha512(process.env.SUPER_ADMIN_EMAIL.toLowerCase().trim())
     : false;
 
-  // Refresh cookie
-  res.cookie('orbit_token', req.token, {
+  // Refresh cookie with current token_version
+  const token = signToken(user.id, user.token_version);
+  res.cookie('orbit_token', token, {
     httpOnly: true,
     sameSite: 'strict',
     maxAge: 7 * 24 * 60 * 60 * 1000,

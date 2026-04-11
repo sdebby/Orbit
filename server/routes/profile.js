@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../models/db');
 const { requireAuth } = require('../middleware/auth');
 const { hashPassword, verifyPassword, decryptEmail, safePicturePath } = require('../utils/hash');
+const { signToken } = require('../middleware/auth');
 
 function stripHtmlTags(str) {
   if (typeof str !== 'string') return str;
@@ -59,8 +60,25 @@ router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) 
   if (trimmedUsername !== null && trimmedUsername.length > 50) return res.status(400).json({ error: 'Username must be 50 characters or fewer' });
   const updatedUsername = username !== undefined ? stripHtmlTags(trimmedUsername) || null : user.username;
 
-  db.prepare('UPDATE users SET profile_picture = ?, password_hash = ?, username = ? WHERE id = ?')
-    .run(picture, passwordHash, updatedUsername, user.id);
+  // If password changed, bump token_version to invalidate all other sessions and clear reset tokens
+  let newVersion = user.token_version || 0;
+  if (new_password) {
+    newVersion = newVersion + 1;
+    db.prepare('UPDATE users SET profile_picture = ?, password_hash = ?, username = ?, token_version = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?')
+      .run(picture, passwordHash, updatedUsername, newVersion, user.id);
+  } else {
+    db.prepare('UPDATE users SET profile_picture = ?, password_hash = ?, username = ? WHERE id = ?')
+      .run(picture, passwordHash, updatedUsername, user.id);
+  }
+
+  // Re-issue cookie with current token_version so the current session stays valid
+  const token = signToken(user.id, newVersion);
+  res.cookie('orbit_token', token, {
+    httpOnly: true,
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    secure: process.env.NODE_ENV === 'production',
+  });
 
   const updated = db.prepare('SELECT id, email, username, profile_picture, created_at FROM users WHERE id = ?').get(user.id);
   res.json({ userId: updated.id, email: decryptEmail(updated.email), username: updated.username, profilePicture: updated.profile_picture, createdAt: updated.created_at });

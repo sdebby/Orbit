@@ -55,7 +55,7 @@ app.use('/uploads', (req, res, next) => {
   const token = cookie ? cookie.split('=')[1] : null;
   if (!token) return res.status(401).json({ error: 'Authentication required' });
   try {
-    jwt.verify(token, process.env.JWT_SECRET || 'orbit-dev-secret-change-in-production');
+    jwt.verify(token, process.env.JWT_SECRET);
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid token' });
