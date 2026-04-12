@@ -61,6 +61,32 @@ function ownsTask(userId, taskId) {
   `).get(taskId, userId);
 }
 
+// GET /api/tasks/overdue?projectId=123  (projectId optional)
+router.get('/overdue', requireAuth, (req, res) => {
+  const userId = req.user.userId;
+  const today = new Date().toISOString().slice(0, 10);
+  const projectId = req.query.projectId ? parseInt(req.query.projectId, 10) : null;
+
+  let sql = `
+    SELECT t.id, t.description, t.due_date,
+           b.id AS bucket_id, b.title AS bucket_title,
+           p.id AS project_id, p.title AS project_title
+    FROM tasks t
+    JOIN buckets b ON t.bucket_id = b.id
+    JOIN projects p ON b.project_id = p.id
+    WHERE p.user_id = ?
+      AND t.completed_at IS NULL
+      AND t.due_date IS NOT NULL
+      AND t.due_date < ?
+  `;
+  const params = [userId, today];
+  if (projectId) { sql += ' AND p.id = ?'; params.push(projectId); }
+  sql += ' ORDER BY t.due_date ASC';
+
+  const rows = db.prepare(sql).all(...params);
+  res.json(rows);
+});
+
 // GET /api/buckets/:bucketId/tasks
 router.get('/', requireAuth, (req, res) => {
   if (!ownsBucket(req.user.userId, req.params.bucketId)) {

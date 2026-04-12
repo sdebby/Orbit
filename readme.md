@@ -10,6 +10,7 @@ A personal project management web app inspired by Trello and Microsoft Planner. 
 - **Kanban boards** — unlimited buckets per project with custom header colors, inline storyboard notes, and drag-and-drop column reordering
 - **Tasks** — priority levels (Low / Medium / High), due dates, picture attachments, tags, and completion tracking; drag-and-drop tasks between buckets; done tasks collapse into a "✓ N Done" section per column; checklist items (sub-tasks) per task with per-item completion and a progress badge on the card; soft ding sound and shine animation on completion; confetti celebration on the 10th completed task; **duplicate button** on each card copies the description (appends "-Copy"), tags, and checklist items into a new task and opens the edit modal immediately
 - **Risk management** — severity / probability / detectability scoring with automatic RPN calculation (S × P × D), solution tracking, and status (Open / Resolved); risks shown in a dedicated board column that can be hidden per-project via the **Add risk bucket** toggle in Edit Project (data is preserved and restored when re-enabled)
+- **Notifications** — bell icon in the navbar shows overdue (incomplete, past-due) tasks; hover to reveal a dropdown list; bell fill color reflects severity: yellow (1–10), orange (11–20), brown (21–30), light red (31+). On the Projects page all overdue tasks are shown; on a Board page only that project's overdue tasks appear
 - **Authentication** — JWT-based login with password visibility toggle, registration with email verification (link expires in 30 minutes), forgot/reset password via email (SMTP); all form validation uses in-app toast notifications (no browser tooltips)
 - **Profile** — display name, avatar upload, password change, dark / light mode toggle, delete account
 - **Security** — Argon2id password hashing, AES-256-GCM email encryption at rest, Helmet security headers, CORS origin restriction, CSRF origin check, rate limiting, cookie-authenticated file uploads, self-hosted fonts, UUID-randomised upload filenames, XSS escaping, timing-attack mitigation on forgot-password
@@ -128,12 +129,21 @@ SUPER_ADMIN_EMAIL=your@email.com
 
 # Email (SMTP) — required for registration verification and forgot-password emails
 # Gmail: use an App Password from https://myaccount.google.com/apppasswords
+# For gmail use:
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_SECURE=false
 SMTP_USER=your@gmail.com
 SMTP_PASS=your-app-password
 SMTP_FROM=your@gmail.com
+
+# For GoDaddy microsoft account use
+SMTP_HOST=smtpout.secureserver.net
+SMTP_PORT=587
+SMTP_SECURE=false          # false = STARTTLS on port 587
+SMTP_USER=you@yourdomain.com
+SMTP_PASS=your_microsoft365_password
+SMTP_FROM=you@yourdomain.com
 
 # Set to 'production' to enable secure (HTTPS-only) cookies
 NODE_ENV=development
@@ -232,7 +242,7 @@ Existing accounts created before this feature was introduced are automatically m
 | Profile | `PUT /api/profile` · `DELETE /api/profile` |
 | Projects | `GET /POST /api/projects` · `GET /PUT /DELETE /api/projects/:id` · `PUT /api/projects/:id/favorite` |
 | Buckets | `GET /POST /api/projects/:id/buckets` · `PUT /DELETE /api/buckets/:id` |
-| Tasks | `GET /POST /api/buckets/:id/tasks` · `GET /PUT /DELETE /api/tasks/:id` |
+| Tasks | `GET /POST /api/buckets/:id/tasks` · `GET /PUT /DELETE /api/tasks/:id` · `GET /api/tasks/overdue` |
 | Checklists | `GET /POST /api/tasks/:id/checklists` · `PUT /DELETE /api/checklists/:id` |
 | Risks | `GET /POST /api/projects/:id/risks` · `GET /PUT /DELETE /api/risks/:id` |
 

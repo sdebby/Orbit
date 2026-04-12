@@ -81,7 +81,7 @@ export async function renderBoard(app, params) {
     </div>
   `;
 
-  setupNavbar();
+  setupNavbar({ projectId });
 
   let project, buckets, itemsByBucket = {}, projectRisks = [];
   let searchQ = '';

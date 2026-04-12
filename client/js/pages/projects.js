@@ -276,12 +276,19 @@ export function navbarHtml({ hideProfile = false } = {}) {
       </a>
       <div class="navbar-sep"></div>
       <span class="navbar-spacer"></span>
-      <button class="nav-icon-btn" id="nav-notifications" title="Notifications" aria-label="Notifications">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-        </svg>
-      </button>
+      <div class="notif-wrapper" id="notif-wrapper">
+        <button class="nav-icon-btn" id="nav-notifications" title="Notifications" aria-label="Notifications">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path id="notif-bell-path" d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span class="notif-badge" id="notif-badge" hidden></span>
+        </button>
+        <div class="notif-panel" id="notif-panel">
+          <div class="notif-panel-header">Overdue Tasks</div>
+          <div class="notif-list" id="notif-list"></div>
+        </div>
+      </div>
       <div class="navbar-user-menu" id="navbar-user-menu">
         <button class="navbar-avatar" id="nav-avatar-btn" title="Account" aria-haspopup="true" aria-expanded="false">${avatarInner}</button>
         <div class="user-dropdown" id="user-dropdown" hidden>
@@ -296,7 +303,7 @@ export function navbarHtml({ hideProfile = false } = {}) {
   `;
 }
 
-export function setupNavbar() {
+export function setupNavbar({ projectId } = {}) {
   const avatarBtn = document.getElementById('nav-avatar-btn');
   const dropdown = document.getElementById('user-dropdown');
 
@@ -319,9 +326,45 @@ export function setupNavbar() {
     document.addEventListener('click', closeOnOutside);
   }
 
-  document.getElementById('nav-notifications')?.addEventListener('click', () => {
-    import('../utils.js').then(({ toast }) => toast('No notifications', 'info'));
-  });
+  function bellFill(n) {
+    if (n === 0) return 'none';
+    if (n <= 10) return '#f5c518';
+    if (n <= 20) return '#ff8c00';
+    if (n <= 30) return '#8B5E3C';
+    return '#ff6b6b';
+  }
+
+  async function loadNotifications() {
+    try {
+      const tasks = await api.getOverdueTasks(projectId);
+      const count = tasks.length;
+      const badge = document.getElementById('notif-badge');
+      const bellPath = document.getElementById('notif-bell-path');
+      const list = document.getElementById('notif-list');
+      if (badge) { badge.textContent = count > 99 ? '99+' : count; badge.hidden = count === 0; }
+      if (bellPath) bellPath.setAttribute('fill', bellFill(count));
+      if (list) {
+        if (count === 0) {
+          list.innerHTML = '<div class="notif-empty">No overdue tasks</div>';
+        } else {
+          list.innerHTML = tasks.map(t => `
+            <div class="notif-item" data-project-id="${t.project_id}" role="button" tabindex="0">
+              <div class="notif-item-desc">${escHtml(t.description)}</div>
+              <div class="notif-item-meta">${escHtml(t.project_title)} &bull; Due ${escHtml(t.due_date)}</div>
+            </div>
+          `).join('');
+          list.querySelectorAll('.notif-item').forEach(el => {
+            el.addEventListener('click', () => {
+              document.getElementById('notif-panel').hidden = true;
+              navigate('/projects/' + el.dataset.projectId);
+            });
+          });
+        }
+      }
+    } catch { /* notifications are non-critical */ }
+  }
+
+  loadNotifications();
   document.getElementById('nav-profile')?.addEventListener('click', () => {
     if (dropdown) dropdown.hidden = true;
     navigate('/profile');

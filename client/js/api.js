@@ -88,6 +88,8 @@ export const api = {
     ? request('PUT', `/tasks/${id}`, null, data)
     : request('PUT', `/tasks/${id}`, data),
   deleteTask: (id) => request('DELETE', `/tasks/${id}`),
+  getOverdueTasks: (projectId) =>
+    request('GET', `/tasks/overdue${projectId ? `?projectId=${projectId}` : ''}`),
 
   // Checklists
   getChecklists: (taskId) => request('GET', `/tasks/${taskId}/checklists`),
