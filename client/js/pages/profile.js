@@ -3,7 +3,7 @@ import { toast, escHtml, getInitials } from '../utils.js';
 import { navigate } from '../router.js';
 import { navbarHtml, setupNavbar, breadcrumbHtml } from './projects.js';
 
-async function importFromXml(xmlText, statusEl) {
+async function importFromXml(xmlText, statusEl, opts = { projects: true, templates: true }) {
   const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
   if (doc.querySelector('parsererror')) throw new Error('Invalid XML file');
 
@@ -17,11 +17,19 @@ async function importFromXml(xmlText, statusEl) {
     const tagsEl = child(el, 'tags');
     return tagsEl ? [...tagsEl.children].map(c => c.textContent.trim()).filter(Boolean) : [];
   }
+  function childItems(el, parentTag, itemTag) {
+    const parent = child(el, parentTag);
+    return parent ? [...parent.children].filter(c => c.tagName.toLowerCase() === itemTag.toLowerCase()).map(c => c.textContent.trim()).filter(Boolean) : [];
+  }
 
-  const projectEls = [...(child(doc.documentElement, 'projects')?.children || [])];
-  if (!projectEls.length) throw new Error('No projects found in file');
+  const projectEls   = opts.projects  ? [...(child(doc.documentElement, 'projects')?.children  || [])] : [];
+  const templateEls  = opts.templates ? [...(child(doc.documentElement, 'templates')?.children || [])] : [];
 
-  const result = { projects: 0, buckets: 0, tasks: 0, risks: 0 };
+  if (!projectEls.length && !templateEls.length) {
+    throw new Error('No matching data found in file for the selected options');
+  }
+
+  const result = { projects: 0, buckets: 0, tasks: 0, risks: 0, templates: 0 };
 
   for (let pi = 0; pi < projectEls.length; pi++) {
     const projEl = projectEls[pi];
@@ -77,6 +85,34 @@ async function importFromXml(xmlText, statusEl) {
         tags: childTags(rEl),
       });
       result.risks++;
+    }
+  }
+
+  for (let ti = 0; ti < templateEls.length; ti++) {
+    const tmplEl = templateEls[ti];
+    statusEl.textContent = `Importing template ${ti + 1} of ${templateEls.length}…`;
+
+    const name = childText(tmplEl, 'name');
+    if (!name) continue;
+    const bucketTitle = childText(tmplEl, 'bucket-title');
+    const tasksEl = child(tmplEl, 'tasks');
+    const tasks = [];
+    for (const tEl of (tasksEl ? [...tasksEl.children] : [])) {
+      const description = childText(tEl, 'description');
+      if (!description) continue;
+      tasks.push({
+        description,
+        priority: childText(tEl, 'priority') || 'Medium',
+        tags: childTags(tEl),
+        checklists: childItems(tEl, 'checklists', 'item'),
+      });
+    }
+    try {
+      await api.createTemplate({ name, bucket_data: JSON.stringify({ title: bucketTitle, tasks }) });
+      result.templates++;
+    } catch (err) {
+      // Skip duplicate templates silently
+      if (!err.message?.includes('already exists')) throw err;
     }
   }
 
@@ -154,18 +190,35 @@ export async function renderProfile(app) {
           <div class="settings-card">
             <div class="settings-card-header">Data</div>
             <div class="settings-card-body">
+              <div class="settings-row" style="flex-wrap:wrap;gap:8px;align-items:center">
+                <div>
+                  <div class="settings-row-title">Include</div>
+                  <div class="settings-row-desc">Select what to include in exports and imports.</div>
+                </div>
+                <div class="data-include-checks">
+                  <label class="data-check-label">
+                    <input type="checkbox" id="include-projects" checked />
+                    Projects
+                  </label>
+                  <label class="data-check-label">
+                    <input type="checkbox" id="include-templates" checked />
+                    Templates
+                  </label>
+                </div>
+              </div>
+              <div class="settings-divider"></div>
               <div class="settings-row">
                 <div>
-                  <div class="settings-row-title">Export Projects</div>
-                  <div class="settings-row-desc">Download all your projects, buckets, tasks and risks as an XML file.</div>
+                  <div class="settings-row-title">Export</div>
+                  <div class="settings-row-desc">Download your selected data as an XML file.</div>
                 </div>
                 <button class="btn btn-outline" id="export-btn" style="flex-shrink:0">Export XML</button>
               </div>
               <div class="settings-divider"></div>
               <div class="settings-row" style="flex-wrap:wrap;gap:12px">
                 <div style="flex:1;min-width:200px">
-                  <div class="settings-row-title">Import Projects</div>
-                  <div class="settings-row-desc">Restore projects from a previously exported Orbit XML file. Existing projects are not affected.</div>
+                  <div class="settings-row-title">Import</div>
+                  <div class="settings-row-desc">Restore data from a previously exported Orbit XML file. Existing data is not affected.</div>
                 </div>
                 <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
                   <div style="display:flex;gap:8px;align-items:center">
@@ -291,11 +344,17 @@ export async function renderProfile(app) {
 
   // Export
   document.getElementById('export-btn').addEventListener('click', async () => {
+    const projects  = document.getElementById('include-projects').checked;
+    const templates = document.getElementById('include-templates').checked;
+    if (!projects && !templates) {
+      toast('Select at least one option to export', 'error');
+      return;
+    }
     const btn = document.getElementById('export-btn');
     btn.disabled = true;
     btn.textContent = 'Exporting…';
     try {
-      await api.exportProjects();
+      await api.exportData({ projects, templates });
       toast('Export downloaded', 'success');
     } catch (err) {
       toast(err.message, 'error');
@@ -317,21 +376,30 @@ export async function renderProfile(app) {
   document.getElementById('import-btn').addEventListener('click', async () => {
     const file = document.getElementById('import-file').files[0];
     if (!file) return;
+    const projects  = document.getElementById('include-projects').checked;
+    const templates = document.getElementById('include-templates').checked;
+    if (!projects && !templates) {
+      toast('Select at least one option to import', 'error');
+      return;
+    }
     const btn = document.getElementById('import-btn');
     const statusEl = document.getElementById('import-status');
     btn.disabled = true;
     statusEl.textContent = 'Reading file…';
     try {
       const xmlText = await file.text();
-      const result = await importFromXml(xmlText, statusEl);
+      const result = await importFromXml(xmlText, statusEl, { projects, templates });
       statusEl.textContent = '';
-      toast(`Imported ${result.projects} project(s), ${result.buckets} bucket(s), ${result.tasks} task(s), ${result.risks} risk(s)`, 'success');
+      const parts = [];
+      if (result.projects)  parts.push(`${result.projects} project(s), ${result.buckets} bucket(s), ${result.tasks} task(s), ${result.risks} risk(s)`);
+      if (result.templates) parts.push(`${result.templates} template(s)`);
+      toast(`Imported ${parts.join(' and ')}`, 'success');
       document.getElementById('import-file').value = '';
       document.getElementById('import-filename').textContent = 'No file chosen';
+      btn.disabled = true;
     } catch (err) {
       statusEl.textContent = '';
       toast(err.message, 'error');
-    } finally {
       btn.disabled = false;
     }
   });

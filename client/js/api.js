@@ -41,8 +41,12 @@ export const api = {
   // Profile
   updateProfile: (formData) => request('PUT', '/profile', null, formData),
   deleteAccount: () => request('DELETE', '/profile'),
-  exportProjects: async () => {
-    const res = await fetch(BASE + '/profile/export', { credentials: 'include' });
+  exportData: async ({ projects = true, templates = true } = {}) => {
+    const params = new URLSearchParams();
+    if (!projects)  params.set('projects',  '0');
+    if (!templates) params.set('templates', '0');
+    const qs = params.toString();
+    const res = await fetch(BASE + '/profile/export' + (qs ? '?' + qs : ''), { credentials: 'include' });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error || 'Export failed');

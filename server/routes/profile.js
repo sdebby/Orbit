@@ -85,6 +85,7 @@ router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) 
 });
 
 // GET /api/profile/export  — download all user data as XML
+// Query params: projects=1 (default 1), templates=1 (default 1)
 router.get('/export', requireAuth, (req, res) => {
   function escXml(val) {
     if (val === null || val === undefined) return '';
@@ -96,70 +97,113 @@ router.get('/export', requireAuth, (req, res) => {
       .replace(/'/g, '&apos;');
   }
 
-  const projects = db.prepare('SELECT * FROM projects WHERE user_id = ? ORDER BY created_at ASC').all(req.user.userId);
+  const includeProjects  = req.query.projects  !== '0';
+  const includeTemplates = req.query.templates !== '0';
+
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     `<orbit-export version="1" exported-at="${new Date().toISOString()}">`,
-    '  <projects>',
   ];
 
-  for (const p of projects) {
-    const pTags = JSON.parse(p.tags || '[]');
-    const buckets = db.prepare('SELECT * FROM buckets WHERE project_id = ? ORDER BY position ASC').all(p.id);
-    const risks = db.prepare('SELECT * FROM risks WHERE project_id = ? ORDER BY position ASC').all(p.id);
+  if (includeProjects) {
+    const projects = db.prepare('SELECT * FROM projects WHERE user_id = ? ORDER BY created_at ASC').all(req.user.userId);
+    lines.push('  <projects>');
 
-    lines.push('    <project>');
-    lines.push(`      <title>${escXml(p.title)}</title>`);
-    lines.push(`      <description>${escXml(p.description)}</description>`);
-    lines.push('      <tags>');
-    pTags.forEach(t => lines.push(`        <tag>${escXml(t)}</tag>`));
-    lines.push('      </tags>');
+    for (const p of projects) {
+      const pTags = JSON.parse(p.tags || '[]');
+      const buckets = db.prepare('SELECT * FROM buckets WHERE project_id = ? ORDER BY position ASC').all(p.id);
+      const risks = db.prepare('SELECT * FROM risks WHERE project_id = ? ORDER BY position ASC').all(p.id);
 
-    lines.push('      <buckets>');
-    for (const b of buckets) {
-      const tasks = db.prepare('SELECT * FROM tasks WHERE bucket_id = ? ORDER BY position ASC').all(b.id);
-      lines.push('        <bucket>');
-      lines.push(`          <title>${escXml(b.title)}</title>`);
-      lines.push(`          <description>${escXml(b.description)}</description>`);
-      lines.push(`          <color>${escXml(b.color)}</color>`);
-      lines.push('          <tasks>');
-      for (const t of tasks) {
-        const tTags = JSON.parse(t.tags || '[]');
-        lines.push('            <task>');
-        lines.push(`              <description>${escXml(t.description)}</description>`);
-        lines.push(`              <priority>${escXml(t.priority)}</priority>`);
-        lines.push(`              <due-date>${escXml(t.due_date)}</due-date>`);
-        lines.push(`              <completed>${t.completed_at ? 'true' : 'false'}</completed>`);
-        lines.push('              <tags>');
-        tTags.forEach(tag => lines.push(`                <tag>${escXml(tag)}</tag>`));
-        lines.push('              </tags>');
-        lines.push('            </task>');
+      lines.push('    <project>');
+      lines.push(`      <title>${escXml(p.title)}</title>`);
+      lines.push(`      <description>${escXml(p.description)}</description>`);
+      lines.push('      <tags>');
+      pTags.forEach(t => lines.push(`        <tag>${escXml(t)}</tag>`));
+      lines.push('      </tags>');
+
+      lines.push('      <buckets>');
+      for (const b of buckets) {
+        const tasks = db.prepare('SELECT * FROM tasks WHERE bucket_id = ? ORDER BY position ASC').all(b.id);
+        lines.push('        <bucket>');
+        lines.push(`          <title>${escXml(b.title)}</title>`);
+        lines.push(`          <description>${escXml(b.description)}</description>`);
+        lines.push(`          <color>${escXml(b.color)}</color>`);
+        lines.push('          <tasks>');
+        for (const t of tasks) {
+          const tTags = JSON.parse(t.tags || '[]');
+          lines.push('            <task>');
+          lines.push(`              <description>${escXml(t.description)}</description>`);
+          lines.push(`              <priority>${escXml(t.priority)}</priority>`);
+          lines.push(`              <due-date>${escXml(t.due_date)}</due-date>`);
+          lines.push(`              <completed>${t.completed_at ? 'true' : 'false'}</completed>`);
+          lines.push('              <tags>');
+          tTags.forEach(tag => lines.push(`                <tag>${escXml(tag)}</tag>`));
+          lines.push('              </tags>');
+          lines.push('            </task>');
+        }
+        lines.push('          </tasks>');
+        lines.push('        </bucket>');
       }
-      lines.push('          </tasks>');
-      lines.push('        </bucket>');
-    }
-    lines.push('      </buckets>');
+      lines.push('      </buckets>');
 
-    lines.push('      <risks>');
-    for (const r of risks) {
-      const rTags = JSON.parse(r.tags || '[]');
-      lines.push('        <risk>');
-      lines.push(`          <description>${escXml(r.description)}</description>`);
-      lines.push(`          <severity>${r.severity}</severity>`);
-      lines.push(`          <probability>${r.probability}</probability>`);
-      lines.push(`          <detectability>${r.detectability}</detectability>`);
-      lines.push(`          <solution-description>${escXml(r.solution_description)}</solution-description>`);
-      lines.push(`          <status>${escXml(r.status)}</status>`);
-      lines.push('          <tags>');
-      rTags.forEach(tag => lines.push(`            <tag>${escXml(tag)}</tag>`));
-      lines.push('          </tags>');
-      lines.push('        </risk>');
+      lines.push('      <risks>');
+      for (const r of risks) {
+        const rTags = JSON.parse(r.tags || '[]');
+        lines.push('        <risk>');
+        lines.push(`          <description>${escXml(r.description)}</description>`);
+        lines.push(`          <severity>${r.severity}</severity>`);
+        lines.push(`          <probability>${r.probability}</probability>`);
+        lines.push(`          <detectability>${r.detectability}</detectability>`);
+        lines.push(`          <solution-description>${escXml(r.solution_description)}</solution-description>`);
+        lines.push(`          <status>${escXml(r.status)}</status>`);
+        lines.push('          <tags>');
+        rTags.forEach(tag => lines.push(`            <tag>${escXml(tag)}</tag>`));
+        lines.push('          </tags>');
+        lines.push('        </risk>');
+      }
+      lines.push('      </risks>');
+      lines.push('    </project>');
     }
-    lines.push('      </risks>');
-    lines.push('    </project>');
+
+    lines.push('  </projects>');
   }
 
-  lines.push('  </projects>');
+  if (includeTemplates) {
+    const templates = db.prepare(
+      'SELECT id, name, bucket_data FROM bucket_templates WHERE user_id = ? ORDER BY name COLLATE NOCASE ASC'
+    ).all(req.user.userId);
+    lines.push('  <templates>');
+
+    for (const tmpl of templates) {
+      let bd;
+      try { bd = JSON.parse(tmpl.bucket_data || '{}'); } catch { bd = {}; }
+      const tasks = Array.isArray(bd.tasks) ? bd.tasks : [];
+
+      lines.push('    <template>');
+      lines.push(`      <name>${escXml(tmpl.name)}</name>`);
+      lines.push(`      <bucket-title>${escXml(bd.title || '')}</bucket-title>`);
+      lines.push('      <tasks>');
+      for (const t of tasks) {
+        const tTags = Array.isArray(t.tags) ? t.tags : [];
+        const checklists = Array.isArray(t.checklists) ? t.checklists : [];
+        lines.push('        <task>');
+        lines.push(`          <description>${escXml(t.description)}</description>`);
+        lines.push(`          <priority>${escXml(t.priority || 'Medium')}</priority>`);
+        lines.push('          <tags>');
+        tTags.forEach(tag => lines.push(`            <tag>${escXml(tag)}</tag>`));
+        lines.push('          </tags>');
+        lines.push('          <checklists>');
+        checklists.forEach(item => lines.push(`            <item>${escXml(item)}</item>`));
+        lines.push('          </checklists>');
+        lines.push('        </task>');
+      }
+      lines.push('      </tasks>');
+      lines.push('    </template>');
+    }
+
+    lines.push('  </templates>');
+  }
+
   lines.push('</orbit-export>');
 
   const filename = `orbit-export-${new Date().toISOString().split('T')[0]}.xml`;
