@@ -780,6 +780,12 @@ export async function renderBoard(app, params) {
             <label>Due Date</label>
             <input type="date" class="form-control" id="t-due" value="${task?.due_date || ''}" />
           </div>
+          <div class="form-group form-group--reminder">
+            <label class="reminder-label">
+              <input type="checkbox" id="t-reminder" ${task?.reminder ? 'checked' : ''} />
+              Reminder
+            </label>
+          </div>
         </div>
         <div class="form-group">
           <label>Image</label>
@@ -903,6 +909,7 @@ export async function renderBoard(app, params) {
       fd.append('description', document.getElementById('t-desc').value);
       fd.append('priority', document.getElementById('t-priority').value);
       fd.append('due_date', document.getElementById('t-due').value || '');
+      fd.append('reminder', document.getElementById('t-reminder').checked ? 'true' : 'false');
       fd.append('tags', JSON.stringify(tagsWidget.getValue()));
       const pic = document.getElementById('t-picture').files[0];
       if (pic) fd.append('picture', pic);

@@ -120,7 +120,13 @@ async function importFromXml(xmlText, statusEl, opts = { projects: true, templat
 }
 
 export async function renderProfile(app) {
-  const user = JSON.parse(localStorage.getItem('orbit_user') || '{}');
+  // Fetch fresh user data so reminder_interval is always current
+  let user = JSON.parse(localStorage.getItem('orbit_user') || '{}');
+  try {
+    const fresh = await api.me();
+    user = { ...user, ...fresh };
+    localStorage.setItem('orbit_user', JSON.stringify(user));
+  } catch { /* use cached */ }
   const displayName = user.username || user.email || '';
 
   app.innerHTML = `
@@ -182,6 +188,30 @@ export async function renderProfile(app) {
                   <input type="checkbox" id="dark-mode-toggle" ${localStorage.getItem('orbit_theme') === 'dark' ? 'checked' : ''} />
                   <span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span>
                 </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Notifications card -->
+          <div class="settings-card">
+            <div class="settings-card-header">Notifications</div>
+            <div class="settings-card-body">
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-title">Task Digest Email</div>
+                  <div class="settings-row-desc">Receive a summary email of all your pending tasks with due dates. Sent at 8:00 AM on the chosen schedule.</div>
+                </div>
+                <select class="form-control" id="reminder-interval" style="width:auto;flex-shrink:0">
+                  <option value="0" ${!user.reminderInterval ? 'selected' : ''}>Off</option>
+                  <option value="1" ${user.reminderInterval === 1 ? 'selected' : ''}>Daily</option>
+                  <option value="3" ${user.reminderInterval === 3 ? 'selected' : ''}>Every 3 days</option>
+                  <option value="7" ${user.reminderInterval === 7 ? 'selected' : ''}>Weekly</option>
+                  <option value="14" ${user.reminderInterval === 14 ? 'selected' : ''}>Every 2 weeks</option>
+                </select>
+              </div>
+              <div class="settings-divider"></div>
+              <div style="display:flex;justify-content:flex-end">
+                <button class="btn btn-primary btn-sm" id="save-notifications-btn">Save</button>
               </div>
             </div>
           </div>
@@ -279,6 +309,25 @@ export async function renderProfile(app) {
   `;
 
   setupNavbar();
+
+  // Notifications — save reminder interval
+  document.getElementById('save-notifications-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('save-notifications-btn');
+    btn.disabled = true;
+    const fd = new FormData();
+    fd.append('reminder_interval', document.getElementById('reminder-interval').value);
+    try {
+      const updated = await api.updateProfile(fd);
+      const stored = JSON.parse(localStorage.getItem('orbit_user') || '{}');
+      stored.reminderInterval = updated.reminderInterval;
+      localStorage.setItem('orbit_user', JSON.stringify(stored));
+      toast('Notification settings saved', 'success');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   document.getElementById('dark-mode-toggle').addEventListener('change', (e) => {
     const theme = e.target.checked ? 'dark' : 'light';

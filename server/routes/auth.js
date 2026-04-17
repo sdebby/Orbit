@@ -176,7 +176,7 @@ router.post('/reset-password/:token', async (req, res) => {
 
 // GET /api/auth/me
 router.get('/me', requireAuth, (req, res) => {
-  const user = db.prepare('SELECT id, email, email_hash, username, profile_picture, created_at, token_version FROM users WHERE id = ?').get(req.user.userId);
+  const user = db.prepare('SELECT id, email, email_hash, username, profile_picture, created_at, token_version, reminder_interval FROM users WHERE id = ?').get(req.user.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const isAdmin = process.env.SUPER_ADMIN_EMAIL
@@ -191,7 +191,7 @@ router.get('/me', requireAuth, (req, res) => {
     maxAge: 7 * 24 * 60 * 60 * 1000,
     secure: process.env.NODE_ENV === 'production',
   });
-  res.json({ userId: user.id, email: decryptEmail(user.email), username: user.username, profilePicture: user.profile_picture, createdAt: user.created_at, isAdmin });
+  res.json({ userId: user.id, email: decryptEmail(user.email), username: user.username, profilePicture: user.profile_picture, createdAt: user.created_at, isAdmin, reminderInterval: user.reminder_interval || 0 });
 });
 
 module.exports = router;

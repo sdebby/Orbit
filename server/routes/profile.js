@@ -43,8 +43,15 @@ router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  const { current_password, new_password, username } = req.body;
+  const { current_password, new_password, username, reminder_interval } = req.body;
   let passwordHash = user.password_hash;
+
+  let reminderInterval = user.reminder_interval || 0;
+  if (reminder_interval !== undefined) {
+    const n = parseInt(reminder_interval, 10);
+    if (isNaN(n) || n < 0 || n > 365) return res.status(400).json({ error: 'reminder_interval must be 0–365' });
+    reminderInterval = n;
+  }
 
   if (new_password) {
     if (!current_password) return res.status(400).json({ error: 'Current password is required to set a new password' });
@@ -64,11 +71,11 @@ router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) 
   let newVersion = user.token_version || 0;
   if (new_password) {
     newVersion = newVersion + 1;
-    db.prepare('UPDATE users SET profile_picture = ?, password_hash = ?, username = ?, token_version = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?')
-      .run(picture, passwordHash, updatedUsername, newVersion, user.id);
+    db.prepare('UPDATE users SET profile_picture = ?, password_hash = ?, username = ?, token_version = ?, reset_token = NULL, reset_token_expires = NULL, reminder_interval = ? WHERE id = ?')
+      .run(picture, passwordHash, updatedUsername, newVersion, reminderInterval, user.id);
   } else {
-    db.prepare('UPDATE users SET profile_picture = ?, password_hash = ?, username = ? WHERE id = ?')
-      .run(picture, passwordHash, updatedUsername, user.id);
+    db.prepare('UPDATE users SET profile_picture = ?, password_hash = ?, username = ?, reminder_interval = ? WHERE id = ?')
+      .run(picture, passwordHash, updatedUsername, reminderInterval, user.id);
   }
 
   // Re-issue cookie with current token_version so the current session stays valid
@@ -80,8 +87,8 @@ router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) 
     secure: process.env.NODE_ENV === 'production',
   });
 
-  const updated = db.prepare('SELECT id, email, username, profile_picture, created_at FROM users WHERE id = ?').get(user.id);
-  res.json({ userId: updated.id, email: decryptEmail(updated.email), username: updated.username, profilePicture: updated.profile_picture, createdAt: updated.created_at });
+  const updated = db.prepare('SELECT id, email, username, profile_picture, created_at, reminder_interval FROM users WHERE id = ?').get(user.id);
+  res.json({ userId: updated.id, email: decryptEmail(updated.email), username: updated.username, profilePicture: updated.profile_picture, createdAt: updated.created_at, reminderInterval: updated.reminder_interval || 0 });
 });
 
 // GET /api/profile/export  — download all user data as XML

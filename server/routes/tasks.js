@@ -106,7 +106,7 @@ router.post('/', requireAuth, upload.single('picture'), (req, res) => {
   if (!ownsBucket(req.user.userId, req.params.bucketId)) {
     return res.status(404).json({ error: 'Bucket not found' });
   }
-  const { description, priority, due_date, tags } = req.body;
+  const { description, priority, due_date, tags, reminder } = req.body;
   if (!description) return res.status(400).json({ error: 'Description is required' });
   if (description.length > 2000) return res.status(400).json({ error: 'Description must be 2000 characters or fewer' });
 
@@ -117,13 +117,14 @@ router.post('/', requireAuth, upload.single('picture'), (req, res) => {
   if (tagsArr.length > 20) return res.status(400).json({ error: 'Too many tags (max 20)' });
   if (tagsArr.some(t => t.length > 50)) return res.status(400).json({ error: 'Each tag must be 50 characters or fewer' });
   const picture = req.file ? `/uploads/${req.file.filename}` : null;
+  const reminderVal = (reminder === 'true' || reminder === true || reminder === '1' || reminder === 1) ? 1 : 0;
 
   const maxPos = db.prepare('SELECT MAX(position) as m FROM tasks WHERE bucket_id = ?').get(req.params.bucketId);
   const position = (maxPos.m || 0) + 1;
 
   const result = db.prepare(
-    'INSERT INTO tasks (bucket_id, description, priority, due_date, tags, position, picture) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(req.params.bucketId, stripHtmlTags(description), p, due_date || null, JSON.stringify(tagsArr.map(stripHtmlTags)), position, picture);
+    'INSERT INTO tasks (bucket_id, description, priority, due_date, tags, position, picture, reminder) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(req.params.bucketId, stripHtmlTags(description), p, due_date || null, JSON.stringify(tagsArr.map(stripHtmlTags)), position, picture, reminderVal);
 
   const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json({ ...task, tags: JSON.parse(task.tags), picture: safePicturePath(task.picture) });
@@ -151,7 +152,7 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
   `).get(req.params.id, req.user.userId);
   if (!task) return res.status(404).json({ error: 'Task not found' });
 
-  const { description, priority, due_date, tags, position, bucket_id, completed } = req.body;
+  const { description, priority, due_date, tags, position, bucket_id, completed, reminder } = req.body;
   if (description !== undefined && description.length > 2000) return res.status(400).json({ error: 'Description must be 2000 characters or fewer' });
   const validPriorities = ['Low', 'Medium', 'High'];
   const p = validPriorities.includes(priority) ? priority : task.priority;
@@ -180,8 +181,13 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
     completedAt = null;
   }
 
-  db.prepare('UPDATE tasks SET bucket_id = ?, description = ?, priority = ?, due_date = ?, tags = ?, position = ?, picture = ?, completed_at = ? WHERE id = ?')
-    .run(targetBucketId, stripHtmlTags(description || task.description), p, due_date ?? task.due_date, JSON.stringify(tagsArr.map(stripHtmlTags)), position ?? task.position, picture, completedAt, task.id);
+  let reminderVal = task.reminder;
+  if (reminder !== undefined) {
+    reminderVal = (reminder === 'true' || reminder === true || reminder === '1' || reminder === 1) ? 1 : 0;
+  }
+
+  db.prepare('UPDATE tasks SET bucket_id = ?, description = ?, priority = ?, due_date = ?, tags = ?, position = ?, picture = ?, completed_at = ?, reminder = ? WHERE id = ?')
+    .run(targetBucketId, stripHtmlTags(description || task.description), p, due_date ?? task.due_date, JSON.stringify(tagsArr.map(stripHtmlTags)), position ?? task.position, picture, completedAt, reminderVal, task.id);
 
   const updated = db.prepare('SELECT * FROM tasks WHERE id = ?').get(task.id);
   res.json({ ...updated, tags: JSON.parse(updated.tags), picture: safePicturePath(updated.picture) });

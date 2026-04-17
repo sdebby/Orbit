@@ -143,7 +143,10 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
+const { startReminderScheduler } = require('./utils/reminderScheduler');
+
 app.listen(PORT, () => {
+  startReminderScheduler();
   console.log(`Orbit server running on ${ALLOWED_ORIGIN}`);
   if (ALLOWED_ORIGIN.includes('localhost')) {
     console.log(`\n⚠  APP_URL is set to ${ALLOWED_ORIGIN}`);

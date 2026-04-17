@@ -597,8 +597,25 @@ button.navbar-avatar:hover { opacity: 0.8; }
 .form-control.error { border-color: var(--red); }
 textarea.form-control { resize: vertical; min-height: 80px; }
 
-.form-row { display: flex; gap: 12px; }
+.form-row { display: flex; gap: 12px; align-items: flex-end; }
 .form-row .form-group { flex: 1; }
+.form-row .form-group--reminder { flex: 0 0 auto; padding-bottom: 6px; }
+.reminder-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.reminder-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--blue);
+}
 
 .form-hint { font-size: 12px; color: var(--gray-500); margin-top: 4px; }
 

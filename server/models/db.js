@@ -135,6 +135,9 @@ try { _db.exec('ALTER TABLE users ADD COLUMN token_version INTEGER DEFAULT 0'); 
 try { _db.exec('ALTER TABLE projects ADD COLUMN favorite INTEGER DEFAULT 0'); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN last_active INTEGER'); } catch {}
 try { _db.exec("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'"); } catch {}
+try { _db.exec('ALTER TABLE tasks ADD COLUMN reminder INTEGER DEFAULT 0'); } catch {}
+try { _db.exec('ALTER TABLE users ADD COLUMN reminder_interval INTEGER DEFAULT 0'); } catch {}
+try { _db.exec('ALTER TABLE users ADD COLUMN reminder_last_sent TEXT'); } catch {}
 
 // Migrate risks from bucket-level to project-level
 try {
