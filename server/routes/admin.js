@@ -169,4 +169,22 @@ router.post('/users/:id/reset-password', (req, res) => {
   res.json({ message: 'Password reset email sent' });
 });
 
+// GET /api/admin/settings
+router.get('/settings', (req, res) => {
+  const rows = db.prepare('SELECT key, value FROM admin_settings').all();
+  const settings = {};
+  for (const row of rows) settings[row.key] = row.value;
+  res.json(settings);
+});
+
+// PUT /api/admin/settings
+router.put('/settings', (req, res) => {
+  const { key, value } = req.body;
+  if (!key || typeof key !== 'string') return res.status(400).json({ error: 'key is required' });
+  if (value === undefined || value === null) return res.status(400).json({ error: 'value is required' });
+
+  db.prepare('INSERT OR REPLACE INTO admin_settings (key, value) VALUES (?, ?)').run(key, String(value));
+  res.json({ message: 'Setting updated', key, value: String(value) });
+});
+
 module.exports = router;

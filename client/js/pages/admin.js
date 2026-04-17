@@ -19,6 +19,8 @@ const adminApi = {
   resetPassword: (id) => request('POST', `/admin/users/${id}/reset-password`),
   setUserStatus: (id, status) => request('POST', `/admin/users/${id}/status`, { status }),
   bulkSetStatus: (ids, status) => request('POST', '/admin/users/bulk-status', { ids, status }),
+  getSettings: () => request('GET', '/admin/settings'),
+  updateSetting: (key, value) => request('PUT', '/admin/settings', { key, value }),
 };
 
 let searchTimeout = null;
@@ -51,6 +53,16 @@ export async function renderAdmin(app) {
       <div class="page-content">
         <div class="admin-stats-grid" id="admin-stats">
           <div class="spinner-wrap" style="height:100px"><div class="spinner"></div></div>
+        </div>
+        <div class="admin-settings-section">
+          <h2>Settings</h2>
+          <div class="admin-setting-row">
+            <span class="admin-setting-label">Create sample project for new users</span>
+            <label class="theme-toggle">
+              <input type="checkbox" id="admin-sample-project-toggle" />
+              <span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span>
+            </label>
+          </div>
         </div>
         <div class="admin-users-section">
           <div class="admin-users-header">
@@ -85,6 +97,7 @@ export async function renderAdmin(app) {
   setupNavbar();
   loadStats();
   loadUsers();
+  loadSettings();
 
   document.getElementById('admin-drawer-close').addEventListener('click', closeDrawer);
   document.getElementById('admin-drawer-backdrop').addEventListener('click', closeDrawer);
@@ -150,6 +163,27 @@ async function loadStats() {
     `;
   } catch (err) {
     el.innerHTML = `<p style="color:var(--red)">${escHtml(err.message)}</p>`;
+  }
+}
+
+async function loadSettings() {
+  try {
+    const settings = await adminApi.getSettings();
+    const toggle = document.getElementById('admin-sample-project-toggle');
+    if (toggle) {
+      toggle.checked = settings.sample_project_enabled !== 'false';
+      toggle.addEventListener('change', async (e) => {
+        try {
+          await adminApi.updateSetting('sample_project_enabled', e.target.checked ? 'true' : 'false');
+          toast(e.target.checked ? 'Sample project enabled' : 'Sample project disabled');
+        } catch (err) {
+          e.target.checked = !e.target.checked;
+          toast(err.message, 'error');
+        }
+      });
+    }
+  } catch (err) {
+    console.error('Failed to load settings:', err);
   }
 }
 

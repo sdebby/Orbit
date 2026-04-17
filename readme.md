@@ -8,11 +8,11 @@ A personal project management web app inspired by Trello and Microsoft Planner. 
 
 - **Projects** — create and manage projects with cover images, tags, and favorites; favorite projects are pinned to the top
 - **Kanban boards** — unlimited buckets per project with custom header colors, inline storyboard notes, and drag-and-drop column reordering
-- **Tasks** — priority levels (Low / Medium / High), due dates, picture attachments, tags, and completion tracking; drag-and-drop tasks between buckets; done tasks collapse into a "✓ N Done" section per column; checklist items (sub-tasks) per task with per-item completion and a progress badge on the card; soft ding sound and shine animation on completion; confetti celebration on the 10th completed task; **duplicate button** on each card copies the description (appends "-Copy"), tags, and checklist items into a new task and opens the edit modal immediately
+- **Tasks** — priority levels (Low / Medium / High), due dates, picture attachments, tags, and completion tracking; drag-and-drop tasks between buckets; done tasks collapse into a "✓ N Done" section per column; checklist items (sub-tasks) per task with per-item completion and a progress badge on the card; soft ding sound and shine animation on completion; confetti celebration on the 10th completed task; **duplicate button** on each card copies the description (appends "-Copy"), tags, and checklist items into a new task and opens the edit modal immediately; **per-task reminder** checkbox — when enabled, sends an email at 8:00 AM on the task's due date containing the bucket description and task description
 - **Risk management** — severity / probability / detectability scoring with automatic RPN calculation (S × P × D), solution tracking, and status (Open / Resolved); risks shown in a dedicated board column that can be hidden per-project via the **Add risk bucket** toggle in Edit Project (data is preserved and restored when re-enabled)
 - **Notifications** — bell icon in the navbar shows overdue (incomplete, past-due) tasks; hover to reveal a dropdown list; bell fill color reflects severity: yellow (1–10), orange (11–20), brown (21–30), light red (31+). On the Projects page all overdue tasks are shown; on a Board page only that project's overdue tasks appear
 - **Authentication** — JWT-based login with password visibility toggle, registration with email verification (link expires in 30 minutes), forgot/reset password via email (SMTP); all form validation uses in-app toast notifications (no browser tooltips)
-- **Profile** — display name, avatar upload, password change, dark / light mode toggle, delete account
+- **Profile** — display name, avatar upload, password change, dark / light mode toggle, delete account; **Notifications** setting to opt-in to a recurring task digest email (Off / Daily / Every 3 days / Weekly / Every 2 weeks) — sent at 8:00 AM and lists all pending tasks with due dates grouped by project and bucket
 - **Security** — Argon2id password hashing, AES-256-GCM email encryption at rest, Helmet security headers, CORS origin restriction, CSRF origin check, rate limiting, cookie-authenticated file uploads, self-hosted fonts, UUID-randomised upload filenames, XSS escaping, timing-attack mitigation on forgot-password
 
 ---
@@ -79,8 +79,9 @@ Orbit/
     ├── middleware/
     │   └── auth.js          # requireAuth, requireAdmin, signToken (JWT)
     ├── utils/
-    │   ├── hash.js          # hashPassword (Argon2id), verifyPassword, sha512, email encryption
-    │   └── email.js         # sendPasswordResetEmail, sendVerificationEmail
+    │   ├── hash.js                # hashPassword (Argon2id), verifyPassword, sha512, email encryption
+    │   ├── email.js               # sendPasswordResetEmail, sendVerificationEmail, sendTaskReminderEmail, sendUndueTasksDigestEmail
+    │   └── reminderScheduler.js   # Daily 8am scheduler: per-task due-date reminders + user digest emails
     ├── uploads/             # Uploaded images (auto-created, gitignored)
     └── data/                # SQLite database file (auto-created, gitignored)
 ```

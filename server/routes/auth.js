@@ -5,6 +5,7 @@ const db = require('../models/db');
 const { sha512, hashPassword, verifyPassword, encryptEmail, decryptEmail } = require('../utils/hash');
 const { requireAuth, signToken, getAdminEmailHash } = require('../middleware/auth');
 const { sendPasswordResetEmail, sendVerificationEmail } = require('../utils/email');
+const { createSampleProject } = require('../utils/sampleProject');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const HEX_TOKEN_RE = /^[0-9a-f]{64}$/; // 32 bytes = 64 hex chars
@@ -36,6 +37,8 @@ router.post('/register', async (req, res) => {
     const result = db.prepare(
       'INSERT INTO users (email, email_hash, password_hash, email_verified, verify_token, verify_token_expires) VALUES (?, ?, ?, 0, ?, ?)'
     ).run(encEmail, emailHash, passwordHash, verifyToken, verifyExpires);
+
+    try { createSampleProject(result.lastInsertRowid); } catch (e) { console.error('Sample project creation failed:', e.message); }
 
     const verifyLink = `${process.env.APP_URL || 'http://localhost:3000'}/#/verify-email/${verifyToken}`;
     sendVerificationEmail(emailNorm, verifyLink).catch(console.error);

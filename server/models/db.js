@@ -101,6 +101,21 @@ _db.exec(`
   );
 `);
 
+_db.exec(`
+  CREATE TABLE IF NOT EXISTS admin_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+`);
+
+// Seed default admin settings
+try {
+  const existing = _db.prepare('SELECT key FROM admin_settings WHERE key = ?').get(['sample_project_enabled']);
+  if (!existing) {
+    _db.prepare('INSERT INTO admin_settings (key, value) VALUES (?, ?)').run(['sample_project_enabled', 'true']);
+  }
+} catch {}
+
 // Migrations — ADD COLUMN is idempotent via try/catch (SQLite has no IF NOT EXISTS for columns)
 try { _db.exec('ALTER TABLE buckets ADD COLUMN color TEXT'); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN username TEXT'); } catch {}
