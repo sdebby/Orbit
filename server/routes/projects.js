@@ -66,6 +66,53 @@ router.get('/', requireAuth, (req, res) => {
   }
 
   projects = projects.map(p => ({ ...p, tags: JSON.parse(p.tags || '[]'), picture: safePicturePath(p.picture) }));
+
+  if (projects.length) {
+    const today = new Date().toISOString().slice(0, 10);
+    const ids = projects.map(p => p.id);
+    const placeholders = ids.map(() => '?').join(',');
+
+    const taskRows = db.prepare(`
+      SELECT b.project_id AS project_id,
+             COUNT(t.id) AS task_total,
+             SUM(CASE WHEN t.completed_at IS NOT NULL THEN 1 ELSE 0 END) AS task_completed,
+             SUM(CASE WHEN t.completed_at IS NULL AND t.due_date IS NOT NULL AND t.due_date < ? THEN 1 ELSE 0 END) AS overdue_count
+      FROM buckets b
+      LEFT JOIN tasks t ON t.bucket_id = b.id
+      WHERE b.project_id IN (${placeholders})
+      GROUP BY b.project_id
+    `).all(today, ...ids);
+
+    const riskRows = db.prepare(`
+      SELECT project_id,
+             COUNT(*) AS total,
+             SUM(CASE WHEN (severity * probability * detectability) >= 200 THEN 1 ELSE 0 END) AS tier_high,
+             SUM(CASE WHEN (severity * probability * detectability) >= 100 AND (severity * probability * detectability) < 200 THEN 1 ELSE 0 END) AS tier_med,
+             SUM(CASE WHEN (severity * probability * detectability) < 100 THEN 1 ELSE 0 END) AS tier_low
+      FROM risks
+      WHERE status = 'Open' AND project_id IN (${placeholders})
+      GROUP BY project_id
+    `).all(...ids);
+
+    const taskMap = new Map(taskRows.map(r => [r.project_id, r]));
+    const riskMap = new Map(riskRows.map(r => [r.project_id, r]));
+
+    projects = projects.map(p => {
+      const t = taskMap.get(p.id) || { task_total: 0, task_completed: 0, overdue_count: 0 };
+      const r = riskMap.get(p.id) || { total: 0, tier_high: 0, tier_med: 0, tier_low: 0 };
+      return {
+        ...p,
+        stats: {
+          taskTotal: t.task_total || 0,
+          taskCompleted: t.task_completed || 0,
+          overdueCount: t.overdue_count || 0,
+          riskOpen: r.total || 0,
+          riskTiers: { high: r.tier_high || 0, medium: r.tier_med || 0, low: r.tier_low || 0 },
+        },
+      };
+    });
+  }
+
   res.json(projects);
 });
 

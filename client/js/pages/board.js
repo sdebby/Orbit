@@ -5,18 +5,17 @@ import { navbarHtml, setupNavbar, showProjectModal, breadcrumbHtml } from './pro
 
 function playDing() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(1047, ctx.currentTime);        // C6
-    osc.frequency.exponentialRampToValueAtTime(1319, ctx.currentTime + 0.08); // E6
-    gain.gain.setValueAtTime(0.25, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.55);
+    const audio = new Audio('/assets/ding.mp3');
+    audio.volume = 0.6;
+    audio.play().catch(() => {});
+  } catch { /* audio not available */ }
+}
+
+function playTaskCreate() {
+  try {
+    const audio = new Audio('/assets/task-create.mp3');
+    audio.volume = 0.6;
+    audio.play().catch(() => {});
   } catch { /* audio not available */ }
 }
 
@@ -372,9 +371,7 @@ export async function renderBoard(app, params) {
       </div>
 
       <div class="bucket-storyboard">
-        <span class="storyboard-edit-icon" aria-hidden="true">&#9998;</span>
-        <textarea class="storyboard-textarea" placeholder="Storyboard…" rows="3">${escHtml(bucket.description || '')}</textarea>
-        <span class="storyboard-saved" aria-live="polite">Saved &#10003;</span>
+        <button type="button" class="btn btn-secondary btn-sm bucket-storyboard-btn ${bucket.description ? 'has-content' : ''}" title="Open storyboard">Storyboard</button>
       </div>
 
       <div class="bucket-section tasks-section">
@@ -404,22 +401,11 @@ export async function renderBoard(app, params) {
       col.querySelector('.text-muted').style.color = 'rgba(255,255,255,0.7)';
     }
 
-    // Storyboard inline save on blur
-    const storyboard = col.querySelector('.storyboard-textarea');
-    let storyboardOriginal = bucket.description || '';
-    const storyboardWrap = col.querySelector('.bucket-storyboard');
-    storyboard.addEventListener('blur', async () => {
-      const val = storyboard.value;
-      if (val === storyboardOriginal) return;
-      try {
-        await api.updateBucket(bucket.id, { description: val });
-        storyboardOriginal = val;
-        storyboardWrap.classList.add('just-saved');
-        setTimeout(() => storyboardWrap.classList.remove('just-saved'), 1800);
-      } catch {
-        storyboard.value = storyboardOriginal;
-      }
-    });
+    // Storyboard: click opens modal
+    col.querySelector('.bucket-storyboard-btn').onclick = (e) => {
+      e.stopPropagation();
+      showStoryboardModal(bucket);
+    };
 
     // Bucket menu
     col.querySelector('.bucket-menu-btn').onclick = (e) => {
@@ -670,6 +656,43 @@ export async function renderBoard(app, params) {
         </div>
       </div>
     `;
+  }
+
+  // ---- Storyboard Modal ----
+  function showStoryboardModal(bucket) {
+    showModal(`
+      <h2>Storyboard</h2>
+      <p class="text-sm text-muted" style="margin:-8px 0 12px">${escHtml(bucket.title)}</p>
+      <form id="storyboard-form">
+        <div class="form-group">
+          <textarea class="form-control" id="sb-text" rows="8" placeholder="Storyboard…">${escHtml(bucket.description || '')}</textarea>
+        </div>
+        <div id="sb-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button type="button" class="btn btn-secondary" id="sb-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    `);
+    document.getElementById('sb-cancel').onclick = hideModal;
+    document.getElementById('storyboard-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('sb-err');
+      const btn = e.target.querySelector('[type=submit]');
+      btn.disabled = true;
+      const val = document.getElementById('sb-text').value;
+      try {
+        await api.updateBucket(bucket.id, { description: val });
+        bucket.description = val;
+        toast('Storyboard saved', 'success');
+        hideModal();
+        await loadAll();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+        btn.disabled = false;
+      }
+    };
   }
 
   // ---- Bucket Modal ----
@@ -923,6 +946,7 @@ export async function renderBoard(app, params) {
           if (checklistItems.length) {
             await Promise.all(checklistItems.map(item => api.createChecklist(newTask.id, item.text)));
           }
+          playTaskCreate();
           toast('Task created', 'success');
         }
         hideModal();

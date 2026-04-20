@@ -61,20 +61,7 @@ function renderGrid(grid, projects) {
 
   grid.classList.toggle('single-row', projects.length <= 4);
 
-  grid.innerHTML = projects.map(p => `
-    <div class="project-card" data-id="${p.id}">
-      <div class="project-card-cover" style="background:${p.picture ? 'transparent' : projectColor(p.id)}">
-        ${p.picture ? `<img src="${escHtml(p.picture)}" alt="" />` : ''}
-        <button class="favorite-star ${p.favorite ? 'active' : ''}" data-id="${p.id}" title="Favorite">&#9733;</button>
-      </div>
-      <div class="project-card-body">
-        <div class="project-card-title">${escHtml(p.title)}</div>
-        ${p.description ? `<div class="project-card-desc">${escHtml(p.description)}</div>` : ''}
-        <div class="project-card-tags">${tagsHtml(p.tags)}</div>
-      </div>
-      <button class="project-card-menu-btn" data-id="${p.id}" title="Options" aria-label="Options">&#8942;</button>
-    </div>
-  `).join('');
+  grid.innerHTML = projects.map(p => projectCardHtml(p)).join('');
 
   grid.querySelectorAll('.project-card').forEach(card => {
     card.addEventListener('click', (e) => {
@@ -240,15 +227,130 @@ export function showProjectModal(project = null, onSuccess = null) {
 }
 
 function projectColor(id) {
-  const colors = [
-    'linear-gradient(135deg,#185FA5,#0d3a6e)',
-    'linear-gradient(135deg,#00875a,#003629)',
-    'linear-gradient(135deg,#6e44b8,#3b1e6e)',
-    'linear-gradient(135deg,#c04030,#6b1e0e)',
-    'linear-gradient(135deg,#b06010,#5a3000)',
-    'linear-gradient(135deg,#0890a8,#004a58)',
+  const gradients = [
+    'linear-gradient(135deg,#0052cc 0%,#185FA5 50%,#0d3a6e 100%)',
+    'linear-gradient(135deg,#00b37a 0%,#00875a 55%,#003629 100%)',
+    'linear-gradient(135deg,#8777d9 0%,#5f4db0 60%,#2d1f6b 100%)',
+    'linear-gradient(135deg,#de350b 0%,#a52407 60%,#5c1201 100%)',
+    'linear-gradient(135deg,#ff8b00 0%,#b06010 55%,#5a3000 100%)',
+    'linear-gradient(135deg,#00b8d9 0%,#0890a8 55%,#00424d 100%)',
   ];
-  return colors[id % colors.length];
+  return gradients[id % gradients.length];
+}
+
+function projectGradientAccent(id) {
+  const accents = [
+    ['#185FA5', '#63a0ff'],
+    ['#00875a', '#6fd095'],
+    ['#8777d9', '#b0a0ee'],
+    ['#de350b', '#ff8b00'],
+    ['#ff8b00', '#ffc266'],
+    ['#0890a8', '#63d4e8'],
+  ];
+  return accents[id % accents.length];
+}
+
+function timeAgo(unixSecs) {
+  if (!unixSecs) return '';
+  const diff = Math.floor(Date.now() / 1000 - unixSecs);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  if (diff < 2592000) return `${Math.floor(diff / 604800)}w ago`;
+  return formatDate(new Date(unixSecs * 1000).toISOString());
+}
+
+function riskSparklineHtml(tiers) {
+  const total = (tiers.high || 0) + (tiers.medium || 0) + (tiers.low || 0);
+  if (!total) return '';
+  const bars = [];
+  for (let i = 0; i < Math.min(tiers.high, 2); i++) bars.push({ color: '#A32D2D', height: 14 - i * 4 });
+  for (let i = 0; i < Math.min(tiers.medium, 2); i++) bars.push({ color: '#854F0B', height: 10 - i * 2 });
+  for (let i = 0; i < Math.min(tiers.low, 2); i++) bars.push({ color: '#3B6D11', height: 5 - i });
+  const html = bars.map(b => `<i style="background:${b.color};height:${b.height}px"></i>`).join('');
+  return `<span class="pc-risks" title="${total} open risk${total === 1 ? '' : 's'}">${html}</span>`;
+}
+
+function projectCardHtml(p) {
+  const stats = p.stats || { taskTotal: 0, taskCompleted: 0, overdueCount: 0, riskOpen: 0, riskTiers: { high: 0, medium: 0, low: 0 } };
+  const { taskTotal, taskCompleted, overdueCount, riskOpen, riskTiers } = stats;
+  const pct = taskTotal ? Math.round((taskCompleted / taskTotal) * 100) : 0;
+  const atRisk = overdueCount > 0 || (riskTiers.high || 0) > 0;
+  const allClear = taskTotal > 0 && riskOpen === 0 && overdueCount === 0;
+  const complete = taskTotal > 0 && taskCompleted === taskTotal;
+  let chipText = '';
+  let chipClass = '';
+  if (atRisk) { chipText = '&#9888; At risk'; chipClass = 'pc-chip-warn'; }
+  else if (complete) { chipText = '&#10003; Complete'; chipClass = 'pc-chip-ok'; }
+  const [accentA, accentB] = projectGradientAccent(p.id);
+  const barGradient = atRisk
+    ? 'linear-gradient(90deg,#de350b,#ff8b00)'
+    : `linear-gradient(90deg,${accentA},${accentB})`;
+  const pctColor = atRisk ? '#854F0B' : (pct >= 80 ? '#3B6D11' : 'var(--text2)');
+  const cardClasses = ['project-card', atRisk ? 'is-at-risk' : '', complete ? 'is-complete' : ''].filter(Boolean).join(' ');
+
+  let footerRight = '';
+  if (overdueCount > 0) {
+    footerRight = `<span class="pc-stat pc-stat-danger">${overdueCount} overdue</span>`;
+  } else if (riskOpen > 0) {
+    footerRight = riskSparklineHtml(riskTiers);
+  } else if (taskTotal === 0) {
+    footerRight = `<span class="pc-stat pc-stat-muted">No tasks yet</span>`;
+  } else {
+    footerRight = `<span class="pc-stat pc-stat-muted">Created ${timeAgo(p.created_at)}</span>`;
+  }
+
+  let statusLeft;
+  if (riskOpen > 0) {
+    const critical = (riskTiers.high || 0) > 0;
+    statusLeft = `<span class="pc-stat"><span class="pc-dot" style="background:${critical ? '#de350b' : '#854F0B'}"></span>${riskOpen} open risk${riskOpen === 1 ? '' : 's'}${critical ? ' · critical' : ''}</span>`;
+  } else if (allClear) {
+    statusLeft = `<span class="pc-stat"><span class="pc-dot" style="background:#3B6D11"></span>All clear</span>`;
+  } else {
+    statusLeft = `<span class="pc-stat pc-stat-muted"><span class="pc-dot" style="background:var(--text3)"></span>No risks tracked</span>`;
+  }
+
+  const coverBg = p.picture ? '' : `style="background:${projectColor(p.id)}"`;
+  const progressHeader = taskTotal
+    ? `<div class="pc-prog-head"><span>${taskCompleted} of ${taskTotal} task${taskTotal === 1 ? '' : 's'}</span><span style="color:${pctColor};font-weight:600">${pct}%</span></div>`
+    : `<div class="pc-prog-head"><span>No tasks yet</span><span style="color:var(--text3)">—</span></div>`;
+
+  return `
+    <div class="${cardClasses}" data-id="${p.id}">
+      <div class="project-card-cover" ${coverBg}>
+        ${p.picture ? `<img src="${escHtml(p.picture)}" alt="" />` : `
+          <div class="pc-orbit" aria-hidden="true">
+            <span class="pc-ring pc-ring-3"></span>
+            <span class="pc-ring pc-ring-2"></span>
+            <span class="pc-ring pc-ring-1"></span>
+            <span class="pc-sat${atRisk ? ' pc-sat-warn' : ''}"></span>
+          </div>
+          <div class="pc-scrim"></div>
+        `}
+        <button class="favorite-star ${p.favorite ? 'active' : ''}" data-id="${p.id}" title="Favorite">&#9733;</button>
+        ${chipText ? `
+          <div class="pc-meta">
+            <span class="pc-chip ${chipClass}">${chipText}</span>
+          </div>
+        ` : ''}
+      </div>
+      <div class="project-card-body">
+        <div class="project-card-title">${escHtml(p.title)}</div>
+        ${p.description ? `<div class="project-card-desc">${escHtml(p.description)}</div>` : ''}
+        <div class="pc-prog">
+          ${progressHeader}
+          <div class="pc-bar"><span style="width:${pct}%;background:${barGradient}"></span></div>
+        </div>
+        <div class="pc-footer">
+          ${statusLeft}
+          ${footerRight}
+        </div>
+        ${p.tags && p.tags.length ? `<div class="project-card-tags">${tagsHtml(p.tags)}</div>` : ''}
+      </div>
+      <button class="project-card-menu-btn" data-id="${p.id}" title="Options" aria-label="Options">&#8942;</button>
+    </div>
+  `;
 }
 
 export function breadcrumbHtml(label = 'Projects') {

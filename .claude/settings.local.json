@@ -12,7 +12,13 @@
       "Bash(git push:*)",
       "Bash(git commit:*)",
       "Bash(git add:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(mkdir -p /tmp/design-extract)",
+      "Bash(cp \"C:/Users/shmul/.claude/projects/C--Users-shmul-Workspace-WebSites-Orbit/3641fed0-b538-493c-81b9-a94f7810c81a/tool-results/webfetch-1776692023717-8p0r6b.bin\" /tmp/design-extract/design.tar.gz)",
+      "Read(//tmp/**)",
+      "Bash(tar -tzf design.tar.gz)",
+      "Bash(tar -xzf design.tar.gz)"
     ]
   }
 }
