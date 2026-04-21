@@ -189,6 +189,17 @@ export async function renderProfile(app) {
                   <span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span>
                 </label>
               </div>
+              <div class="settings-divider"></div>
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-title">Sounds</div>
+                  <div class="settings-row-desc">Play sounds on task creation and completion</div>
+                </div>
+                <label class="theme-toggle">
+                  <input type="checkbox" id="sounds-toggle" ${localStorage.getItem('orbit_sounds_enabled') !== '0' ? 'checked' : ''} />
+                  <span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span>
+                </label>
+              </div>
             </div>
           </div>
 
@@ -333,6 +344,10 @@ export async function renderProfile(app) {
     const theme = e.target.checked ? 'dark' : 'light';
     document.body.setAttribute('data-theme', theme);
     localStorage.setItem('orbit_theme', theme);
+  });
+
+  document.getElementById('sounds-toggle').addEventListener('change', (e) => {
+    localStorage.setItem('orbit_sounds_enabled', e.target.checked ? '1' : '0');
   });
 
   // Avatar upload

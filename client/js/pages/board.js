@@ -3,7 +3,12 @@ import { toast, showModal, hideModal, tagsInput, tagsHtml, escHtml, formatDate, 
 import { navigate } from '../router.js';
 import { navbarHtml, setupNavbar, showProjectModal, breadcrumbHtml } from './projects.js';
 
+function soundsEnabled() {
+  return localStorage.getItem('orbit_sounds_enabled') !== '0';
+}
+
 function playDing() {
+  if (!soundsEnabled()) return;
   try {
     const audio = new Audio('/assets/ding.mp3');
     audio.volume = 0.6;
@@ -12,6 +17,7 @@ function playDing() {
 }
 
 function playTaskCreate() {
+  if (!soundsEnabled()) return;
   try {
     const audio = new Audio('/assets/task-create.mp3');
     audio.volume = 0.6;
@@ -296,9 +302,17 @@ export async function renderBoard(app, params) {
           itemsContainer.appendChild(dragCard);
         }
 
-        // Persist: update bucket_id on server
+        // Compute new positions for every active card in the target container
+        const activeCards = [...itemsContainer.querySelectorAll('.task-card:not(.task-done)')];
+        const newPositions = activeCards.map((card, idx) => ({ id: card.dataset.id, position: idx + 1 }));
+        const movedPos = newPositions.find(u => u.id === taskId)?.position ?? 1;
+
         try {
-          await api.updateTask(taskId, { bucket_id: targetBucketId });
+          // Persist the moved task (bucket + position)
+          await api.updateTask(taskId, { bucket_id: targetBucketId, position: movedPos });
+          // Persist shifted neighbors in the target bucket
+          const others = newPositions.filter(u => u.id !== taskId);
+          await Promise.all(others.map(u => api.updateTask(u.id, { position: u.position })));
           await loadAll();
         } catch (err) {
           toast('Failed to move task', 'error');
