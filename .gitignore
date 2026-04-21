@@ -1,0 +1,9 @@
+.gitignore
+node_modules/
+server/node_modules/
+server/data/
+server/uploads/
+server/.env
+.claude/
+*.log
+CLAUDE.md
