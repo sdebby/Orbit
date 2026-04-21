@@ -1,6 +1,8 @@
 .gitignore
 node_modules/
 server/node_modules/
+assets/
+server/repair-db.js
 server/data/
 server/uploads/
 server/.env
