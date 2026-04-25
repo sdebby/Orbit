@@ -968,6 +968,31 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 }
 .workspace-add-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent2); }
 
+.ws-icon { font-size: 14px; line-height: 1; flex-shrink: 0; }
+
+.ws-icon-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ws-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: var(--bg2);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color .12s, background .12s;
+  color: var(--text3);
+}
+.ws-icon-btn:hover { border-color: var(--accent); background: var(--accent2); }
+.ws-icon-btn.selected { border-color: var(--accent); background: var(--accent2); box-shadow: 0 0 0 2px var(--accent2); }
+.ws-icon-none { font-size: 14px; }
+
 .pc-workspace-badge {
   display: inline-flex;
   align-items: center;

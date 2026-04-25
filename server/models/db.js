@@ -165,6 +165,7 @@ try { _db.exec('ALTER TABLE users ADD COLUMN reminder_interval INTEGER DEFAULT 0
 try { _db.exec('ALTER TABLE users ADD COLUMN reminder_last_sent TEXT'); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN workspaces_enabled INTEGER DEFAULT 0'); } catch {}
 try { _db.exec('ALTER TABLE projects ADD COLUMN workspace_id INTEGER'); } catch {}
+try { _db.exec('ALTER TABLE workspaces ADD COLUMN icon TEXT'); } catch {}
 
 // Migrate risks from bucket-level to project-level
 try {

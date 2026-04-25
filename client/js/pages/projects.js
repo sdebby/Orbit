@@ -54,6 +54,8 @@ export async function renderProjects(app) {
 
 // ---- Workspace tabs ----
 
+const WS_ICONS = ['💼','🏠','🎯','🚀','📚','💡','⭐','🔧','🎨','📊'];
+
 async function loadWorkspaceTabs() {
   try {
     workspacesCache = await api.getWorkspaces();
@@ -71,7 +73,7 @@ function renderWorkspaceTabs() {
 
   const wsTabs = workspacesCache.map(ws => `
     <button class="ws-tab ${activeWorkspace === String(ws.id) ? 'active' : ''}" data-ws="${ws.id}">
-      ${ws.color ? `<span class="ws-dot" style="background:${escHtml(ws.color)}"></span>` : ''}
+      ${ws.icon ? `<span class="ws-icon">${escHtml(ws.icon)}</span>` : ws.color ? `<span class="ws-dot" style="background:${escHtml(ws.color)}"></span>` : ''}
       ${escHtml(ws.name)}
       <span class="ws-tab-menu-btn" data-wsid="${ws.id}" title="Workspace options">&#8942;</span>
     </button>
@@ -134,12 +136,23 @@ function showWorkspaceMenu(btn, ws) {
 
 function showWorkspaceModal(ws = null) {
   const isEdit = !!ws;
+  const iconPickerHtml = WS_ICONS.map(ic => `
+    <button type="button" class="ws-icon-btn${ws?.icon === ic ? ' selected' : ''}" data-icon="${ic}" title="${ic}">${ic}</button>
+  `).join('');
+
   showModal(`
-    <h2>${isEdit ? 'Rename Workspace' : 'New Workspace'}</h2>
+    <h2>${isEdit ? 'Edit Workspace' : 'New Workspace'}</h2>
     <form id="ws-form">
       <div class="form-group">
         <label>Name *</label>
         <input class="form-control" id="ws-name" value="${escHtml(ws?.name || '')}" required maxlength="80" />
+      </div>
+      <div class="form-group">
+        <label>Icon</label>
+        <div class="ws-icon-picker" id="ws-icon-picker">
+          <button type="button" class="ws-icon-btn ws-icon-none${!ws?.icon ? ' selected' : ''}" data-icon="" title="No icon">&#8709;</button>
+          ${iconPickerHtml}
+        </div>
       </div>
       <div id="ws-error" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -150,19 +163,29 @@ function showWorkspaceModal(ws = null) {
   `);
 
   document.getElementById('ws-cancel').onclick = hideModal;
+
+  document.getElementById('ws-icon-picker').addEventListener('click', (e) => {
+    const btn = e.target.closest('.ws-icon-btn');
+    if (!btn) return;
+    document.querySelectorAll('.ws-icon-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+  });
+
   document.getElementById('ws-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const errEl = document.getElementById('ws-error');
     errEl.style.display = 'none';
-    const btn = e.target.querySelector('[type=submit]');
-    btn.disabled = true;
+    const submitBtn = e.target.querySelector('[type=submit]');
+    submitBtn.disabled = true;
     const name = document.getElementById('ws-name').value.trim();
+    const selectedIcon = document.querySelector('.ws-icon-btn.selected')?.dataset.icon || null;
+    const icon = selectedIcon || null;
     try {
       if (isEdit) {
-        const updated = await api.updateWorkspace(ws.id, { name });
+        const updated = await api.updateWorkspace(ws.id, { name, icon });
         workspacesCache = workspacesCache.map(w => w.id === ws.id ? updated : w);
       } else {
-        const created = await api.createWorkspace({ name });
+        const created = await api.createWorkspace({ name, icon });
         workspacesCache = [...workspacesCache, created];
         activeWorkspace = String(created.id);
       }
@@ -172,7 +195,7 @@ function showWorkspaceModal(ws = null) {
     } catch (err) {
       errEl.textContent = err.message;
       errEl.style.display = 'block';
-      btn.disabled = false;
+      submitBtn.disabled = false;
     }
   });
 }

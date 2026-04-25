@@ -6,6 +6,9 @@ const { requireAuth } = require('../middleware/auth');
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 function validColor(c) { return c && HEX_COLOR_RE.test(c) ? c : null; }
 
+const ALLOWED_ICONS = new Set(['💼','🏠','🎯','🚀','📚','💡','⭐','🔧','🎨','📊']);
+function validIcon(i) { return i && ALLOWED_ICONS.has(i) ? i : null; }
+
 function stripHtmlTags(str) {
   if (typeof str !== 'string') return str;
   return str.replace(/<\/?[a-zA-Z][^>]*>/g, '');
@@ -25,7 +28,7 @@ router.get('/', requireAuth, (req, res) => {
 
 // POST /api/workspaces
 router.post('/', requireAuth, (req, res) => {
-  const { name, color } = req.body;
+  const { name, color, icon } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
   const trimmed = stripHtmlTags(name.trim());
   if (trimmed.length > 80) return res.status(400).json({ error: 'Name must be 80 characters or fewer' });
@@ -34,8 +37,8 @@ router.post('/', requireAuth, (req, res) => {
   const position = (maxPos.m || 0) + 1;
 
   const result = db.prepare(
-    'INSERT INTO workspaces (user_id, name, color, position) VALUES (?, ?, ?, ?)'
-  ).run(req.user.userId, trimmed, validColor(color), position);
+    'INSERT INTO workspaces (user_id, name, color, icon, position) VALUES (?, ?, ?, ?, ?)'
+  ).run(req.user.userId, trimmed, validColor(color), validIcon(icon), position);
 
   const ws = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(ws);
@@ -46,16 +49,17 @@ router.put('/:id', requireAuth, (req, res) => {
   const ws = ownsWorkspace(req.user.userId, parseInt(req.params.id, 10));
   if (!ws) return res.status(404).json({ error: 'Workspace not found' });
 
-  const { name, color, position } = req.body;
+  const { name, color, icon, position } = req.body;
   const newName = name !== undefined ? stripHtmlTags(name.trim()) : ws.name;
   if (newName.length === 0) return res.status(400).json({ error: 'Name is required' });
   if (newName.length > 80) return res.status(400).json({ error: 'Name must be 80 characters or fewer' });
 
   const newColor = color !== undefined ? validColor(color) : ws.color;
+  const newIcon = icon !== undefined ? validIcon(icon) : ws.icon;
   const newPos = position !== undefined ? parseInt(position, 10) : ws.position;
 
-  db.prepare('UPDATE workspaces SET name = ?, color = ?, position = ? WHERE id = ?')
-    .run(newName, newColor, newPos, ws.id);
+  db.prepare('UPDATE workspaces SET name = ?, color = ?, icon = ?, position = ? WHERE id = ?')
+    .run(newName, newColor, newIcon, newPos, ws.id);
 
   const updated = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(ws.id);
   res.json(updated);
