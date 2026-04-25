@@ -203,6 +203,23 @@ export async function renderProfile(app) {
             </div>
           </div>
 
+          <!-- Workspaces card -->
+          <div class="settings-card">
+            <div class="settings-card-header">Workspaces</div>
+            <div class="settings-card-body">
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-title">Enable Workspaces</div>
+                  <div class="settings-row-desc">Organize projects into named workspaces like "Work" and "Personal". When first enabled, all existing projects move to a "Default Workspace".</div>
+                </div>
+                <label class="theme-toggle">
+                  <input type="checkbox" id="workspaces-toggle" ${user.workspacesEnabled ? 'checked' : ''} />
+                  <span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span>
+                </label>
+              </div>
+            </div>
+          </div>
+
           <!-- Notifications card -->
           <div class="settings-card">
             <div class="settings-card-header">Notifications</div>
@@ -348,6 +365,22 @@ export async function renderProfile(app) {
 
   document.getElementById('sounds-toggle').addEventListener('change', (e) => {
     localStorage.setItem('orbit_sounds_enabled', e.target.checked ? '1' : '0');
+  });
+
+  document.getElementById('workspaces-toggle').addEventListener('change', async (e) => {
+    const enabled = e.target.checked;
+    const fd = new FormData();
+    fd.append('workspaces_enabled', enabled ? '1' : '0');
+    try {
+      const updated = await api.updateProfile(fd);
+      const stored = JSON.parse(localStorage.getItem('orbit_user') || '{}');
+      stored.workspacesEnabled = updated.workspacesEnabled;
+      localStorage.setItem('orbit_user', JSON.stringify(stored));
+      toast(enabled ? 'Workspaces enabled' : 'Workspaces disabled', 'success');
+    } catch (err) {
+      e.target.checked = !enabled;
+      toast(err.message, 'error');
+    }
   });
 
   // Avatar upload

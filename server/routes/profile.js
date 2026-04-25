@@ -43,7 +43,7 @@ router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  const { current_password, new_password, username, reminder_interval } = req.body;
+  const { current_password, new_password, username, reminder_interval, workspaces_enabled } = req.body;
   let passwordHash = user.password_hash;
 
   let reminderInterval = user.reminder_interval || 0;
@@ -51,6 +51,20 @@ router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) 
     const n = parseInt(reminder_interval, 10);
     if (isNaN(n) || n < 0 || n > 365) return res.status(400).json({ error: 'reminder_interval must be 0–365' });
     reminderInterval = n;
+  }
+
+  let wsEnabled = user.workspaces_enabled || 0;
+  if (workspaces_enabled !== undefined) {
+    wsEnabled = (workspaces_enabled === '1' || workspaces_enabled === 'true') ? 1 : 0;
+    if (wsEnabled === 1 && !user.workspaces_enabled) {
+      const existing = db.prepare('SELECT id FROM workspaces WHERE user_id = ? LIMIT 1').get(user.id);
+      if (!existing) {
+        const ws = db.prepare('INSERT INTO workspaces (user_id, name, position) VALUES (?, ?, 0)')
+          .run(user.id, 'Default Workspace');
+        db.prepare('UPDATE projects SET workspace_id = ? WHERE user_id = ? AND workspace_id IS NULL')
+          .run(ws.lastInsertRowid, user.id);
+      }
+    }
   }
 
   if (new_password) {
@@ -71,11 +85,11 @@ router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) 
   let newVersion = user.token_version || 0;
   if (new_password) {
     newVersion = newVersion + 1;
-    db.prepare('UPDATE users SET profile_picture = ?, password_hash = ?, username = ?, token_version = ?, reset_token = NULL, reset_token_expires = NULL, reminder_interval = ? WHERE id = ?')
-      .run(picture, passwordHash, updatedUsername, newVersion, reminderInterval, user.id);
+    db.prepare('UPDATE users SET profile_picture = ?, password_hash = ?, username = ?, token_version = ?, reset_token = NULL, reset_token_expires = NULL, reminder_interval = ?, workspaces_enabled = ? WHERE id = ?')
+      .run(picture, passwordHash, updatedUsername, newVersion, reminderInterval, wsEnabled, user.id);
   } else {
-    db.prepare('UPDATE users SET profile_picture = ?, password_hash = ?, username = ?, reminder_interval = ? WHERE id = ?')
-      .run(picture, passwordHash, updatedUsername, reminderInterval, user.id);
+    db.prepare('UPDATE users SET profile_picture = ?, password_hash = ?, username = ?, reminder_interval = ?, workspaces_enabled = ? WHERE id = ?')
+      .run(picture, passwordHash, updatedUsername, reminderInterval, wsEnabled, user.id);
   }
 
   // Re-issue cookie with current token_version so the current session stays valid
@@ -87,8 +101,8 @@ router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) 
     secure: process.env.NODE_ENV === 'production',
   });
 
-  const updated = db.prepare('SELECT id, email, username, profile_picture, created_at, reminder_interval FROM users WHERE id = ?').get(user.id);
-  res.json({ userId: updated.id, email: decryptEmail(updated.email), username: updated.username, profilePicture: updated.profile_picture, createdAt: updated.created_at, reminderInterval: updated.reminder_interval || 0 });
+  const updated = db.prepare('SELECT id, email, username, profile_picture, created_at, reminder_interval, workspaces_enabled FROM users WHERE id = ?').get(user.id);
+  res.json({ userId: updated.id, email: decryptEmail(updated.email), username: updated.username, profilePicture: updated.profile_picture, createdAt: updated.created_at, reminderInterval: updated.reminder_interval || 0, workspacesEnabled: updated.workspaces_enabled || 0 });
 });
 
 // GET /api/profile/export  — download all user data as XML

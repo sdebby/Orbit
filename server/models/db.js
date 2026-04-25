@@ -83,6 +83,16 @@ _db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS workspaces (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    color TEXT,
+    position INTEGER DEFAULT 0,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS risks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     bucket_id INTEGER NOT NULL,
@@ -153,6 +163,8 @@ try { _db.exec("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'"); } c
 try { _db.exec('ALTER TABLE tasks ADD COLUMN reminder INTEGER DEFAULT 0'); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN reminder_interval INTEGER DEFAULT 0'); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN reminder_last_sent TEXT'); } catch {}
+try { _db.exec('ALTER TABLE users ADD COLUMN workspaces_enabled INTEGER DEFAULT 0'); } catch {}
+try { _db.exec('ALTER TABLE projects ADD COLUMN workspace_id INTEGER'); } catch {}
 
 // Migrate risks from bucket-level to project-level
 try {

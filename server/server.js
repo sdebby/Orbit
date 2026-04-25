@@ -151,6 +151,7 @@ app.use('/api/profile', profileLimiter, require('./routes/profile'));
 app.use('/api/admin', require('./routes/admin'));
 
 app.use('/api/templates', require('./routes/templates'));
+app.use('/api/workspaces', require('./routes/workspaces'));
 
 // Standalone bucket/task/risk/checklist routes (without prefix context)
 app.use('/api/buckets', require('./routes/buckets'));

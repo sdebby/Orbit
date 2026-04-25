@@ -63,10 +63,11 @@ export const api = {
   },
 
   // Projects
-  getProjects: (q, tags) => {
+  getProjects: (q, tags, workspace) => {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (tags) params.set('tags', tags);
+    if (workspace !== undefined && workspace !== 'all') params.set('workspace', workspace);
     const qs = params.toString();
     return request('GET', `/projects${qs ? '?' + qs : ''}`);
   },
@@ -75,6 +76,12 @@ export const api = {
   updateProject: (id, formData) => request('PUT', `/projects/${id}`, null, formData),
   toggleFavorite: (id) => request('PUT', `/projects/${id}/favorite`),
   deleteProject: (id) => request('DELETE', `/projects/${id}`),
+
+  // Workspaces
+  getWorkspaces: () => request('GET', '/workspaces'),
+  createWorkspace: (data) => request('POST', '/workspaces', data),
+  updateWorkspace: (id, data) => request('PUT', `/workspaces/${id}`, data),
+  deleteWorkspace: (id) => request('DELETE', `/workspaces/${id}`),
 
   // Buckets
   getBuckets: (projectId) => request('GET', `/projects/${projectId}/buckets`),

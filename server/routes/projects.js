@@ -44,15 +44,24 @@ function parseTags(val, fallback) {
   return arr;
 }
 
-// GET /api/projects  — with optional search
+// GET /api/projects  — with optional search and workspace filter
 router.get('/', requireAuth, (req, res) => {
-  const { q, tags } = req.query;
+  const { q, tags, workspace } = req.query;
   let query = 'SELECT * FROM projects WHERE user_id = ?';
   const params = [req.user.userId];
 
   if (q) {
     query += ' AND (title LIKE ? OR description LIKE ?)';
     params.push(`%${q}%`, `%${q}%`);
+  }
+
+  if (workspace && workspace !== 'all') {
+    if (workspace === 'none') {
+      query += ' AND workspace_id IS NULL';
+    } else {
+      const wsId = parseInt(workspace, 10);
+      if (!isNaN(wsId)) { query += ' AND workspace_id = ?'; params.push(wsId); }
+    }
   }
 
   let projects = db.prepare(query + ' ORDER BY favorite DESC, title COLLATE NOCASE ASC').all(...params);
@@ -118,7 +127,7 @@ router.get('/', requireAuth, (req, res) => {
 
 // POST /api/projects
 router.post('/', requireAuth, upload.single('picture'), (req, res) => {
-  const { title, description, tags } = req.body;
+  const { title, description, tags, workspace_id } = req.body;
   if (!title) return res.status(400).json({ error: 'Title is required' });
   if (title.length > 100) return res.status(400).json({ error: 'Title must be 100 characters or fewer' });
   if (description && description.length > 5000) return res.status(400).json({ error: 'Description must be 5000 characters or fewer' });
@@ -129,9 +138,15 @@ router.post('/', requireAuth, upload.single('picture'), (req, res) => {
   if (tagsArr.some(t => t.length > 50)) return res.status(400).json({ error: 'Each tag must be 50 characters or fewer' });
   const picture = req.file ? `/uploads/${req.file.filename}` : null;
 
+  let wsId = workspace_id ? parseInt(workspace_id, 10) : null;
+  if (wsId) {
+    const ws = db.prepare('SELECT id FROM workspaces WHERE id = ? AND user_id = ?').get(wsId, req.user.userId);
+    if (!ws) return res.status(400).json({ error: 'Invalid workspace' });
+  }
+
   const result = db.prepare(
-    'INSERT INTO projects (user_id, title, description, picture, tags) VALUES (?, ?, ?, ?, ?)'
-  ).run(req.user.userId, stripHtmlTags(title), stripHtmlTags(description) || null, picture, JSON.stringify(tagsArr.map(stripHtmlTags)));
+    'INSERT INTO projects (user_id, title, description, picture, tags, workspace_id) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(req.user.userId, stripHtmlTags(title), stripHtmlTags(description) || null, picture, JSON.stringify(tagsArr.map(stripHtmlTags)), wsId || null);
 
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json({ ...project, tags: JSON.parse(project.tags) });
@@ -151,7 +166,7 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
     .get(req.params.id, req.user.userId);
   if (!project) return res.status(404).json({ error: 'Project not found' });
 
-  const { title, description, tags, remove_picture } = req.body;
+  const { title, description, tags, remove_picture, workspace_id } = req.body;
   if (title !== undefined && title.length > 100) return res.status(400).json({ error: 'Title must be 100 characters or fewer' });
   if (description !== undefined && description.length > 5000) return res.status(400).json({ error: 'Description must be 5000 characters or fewer' });
   const tagsArr = parseTags(tags, JSON.parse(project.tags || '[]'));
@@ -163,8 +178,17 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
   else if (remove_picture === 'true') picture = null;
   else picture = safePicturePath(project.picture);
 
-  db.prepare('UPDATE projects SET title = ?, description = ?, picture = ?, tags = ? WHERE id = ?')
-    .run(stripHtmlTags(title || project.title), stripHtmlTags(description ?? project.description), picture, JSON.stringify(tagsArr.map(stripHtmlTags)), project.id);
+  let wsId = project.workspace_id;
+  if (workspace_id !== undefined) {
+    wsId = workspace_id ? parseInt(workspace_id, 10) : null;
+    if (wsId) {
+      const ws = db.prepare('SELECT id FROM workspaces WHERE id = ? AND user_id = ?').get(wsId, req.user.userId);
+      if (!ws) return res.status(400).json({ error: 'Invalid workspace' });
+    }
+  }
+
+  db.prepare('UPDATE projects SET title = ?, description = ?, picture = ?, tags = ?, workspace_id = ? WHERE id = ?')
+    .run(stripHtmlTags(title || project.title), stripHtmlTags(description ?? project.description), picture, JSON.stringify(tagsArr.map(stripHtmlTags)), wsId, project.id);
 
   const updated = db.prepare('SELECT * FROM projects WHERE id = ?').get(project.id);
   res.json({ ...updated, tags: JSON.parse(updated.tags) });

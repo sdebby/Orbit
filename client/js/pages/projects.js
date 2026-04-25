@@ -3,8 +3,13 @@ import { toast, showModal, hideModal, tagsInput, tagsHtml, escHtml, formatDate }
 import { navigate } from '../router.js';
 
 let searchTimeout = null;
+let activeWorkspace = 'all';
+let workspacesCache = [];
 
 export async function renderProjects(app) {
+  const user = JSON.parse(localStorage.getItem('orbit_user') || '{}');
+  const wsEnabled = !!user.workspacesEnabled;
+
   app.innerHTML = `
     <div class="app-layout">
       ${navbarHtml()}
@@ -18,6 +23,11 @@ export async function renderProjects(app) {
           <button class="projects-add-btn" id="new-project-btn">+ New Project</button>
         </div>
       </div>
+      ${wsEnabled ? `
+      <div class="workspace-tabs-bar">
+        <div class="workspace-tabs" id="workspace-tabs"></div>
+        <button class="workspace-add-btn" id="workspace-add-btn" title="New Workspace">+</button>
+      </div>` : ''}
       <div class="page-content">
         <div id="projects-grid" class="projects-grid">
           <div class="spinner-wrap" style="height:200px"><div class="spinner"></div></div>
@@ -27,6 +37,11 @@ export async function renderProjects(app) {
   `;
 
   setupNavbar();
+
+  if (wsEnabled) {
+    await loadWorkspaceTabs();
+  }
+
   loadProjects();
 
   document.getElementById('project-search').addEventListener('input', (e) => {
@@ -37,18 +52,148 @@ export async function renderProjects(app) {
   document.getElementById('new-project-btn').addEventListener('click', () => showProjectModal());
 }
 
+// ---- Workspace tabs ----
+
+async function loadWorkspaceTabs() {
+  try {
+    workspacesCache = await api.getWorkspaces();
+  } catch {
+    workspacesCache = [];
+  }
+  renderWorkspaceTabs();
+}
+
+function renderWorkspaceTabs() {
+  const container = document.getElementById('workspace-tabs');
+  if (!container) return;
+
+  const allTab = `<button class="ws-tab ${activeWorkspace === 'all' ? 'active' : ''}" data-ws="all">All</button>`;
+
+  const wsTabs = workspacesCache.map(ws => `
+    <button class="ws-tab ${activeWorkspace === String(ws.id) ? 'active' : ''}" data-ws="${ws.id}">
+      ${ws.color ? `<span class="ws-dot" style="background:${escHtml(ws.color)}"></span>` : ''}
+      ${escHtml(ws.name)}
+      <span class="ws-tab-menu-btn" data-wsid="${ws.id}" title="Workspace options">&#8942;</span>
+    </button>
+  `).join('');
+
+  container.innerHTML = allTab + wsTabs;
+
+  container.querySelectorAll('.ws-tab').forEach(tab => {
+    tab.addEventListener('click', (e) => {
+      if (e.target.closest('.ws-tab-menu-btn')) return;
+      activeWorkspace = tab.dataset.ws;
+      renderWorkspaceTabs();
+      loadProjects(document.getElementById('project-search')?.value || '');
+    });
+  });
+
+  container.querySelectorAll('.ws-tab-menu-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wsId = parseInt(btn.dataset.wsid, 10);
+      const ws = workspacesCache.find(w => w.id === wsId);
+      if (ws) showWorkspaceMenu(btn, ws);
+    });
+  });
+
+  document.getElementById('workspace-add-btn')?.addEventListener('click', () => {
+    showWorkspaceModal();
+  });
+}
+
+function showWorkspaceMenu(btn, ws) {
+  document.querySelectorAll('.dropdown').forEach(d => d.remove());
+  const menu = document.createElement('div');
+  menu.className = 'dropdown';
+  menu.innerHTML = `
+    <button class="dropdown-item" id="wsm-rename">Rename</button>
+    <button class="dropdown-item danger" id="wsm-delete">Delete Workspace</button>
+  `;
+  document.body.appendChild(menu);
+  const rect = btn.getBoundingClientRect();
+  menu.style.top = `${rect.bottom + window.scrollY + 4}px`;
+  menu.style.left = `${Math.min(rect.right + window.scrollX - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 8)}px`;
+
+  menu.querySelector('#wsm-rename').onclick = () => { menu.remove(); showWorkspaceModal(ws); };
+  menu.querySelector('#wsm-delete').onclick = async () => {
+    menu.remove();
+    if (!confirm(`Delete workspace "${ws.name}"? Its projects will become unassigned.`)) return;
+    try {
+      await api.deleteWorkspace(ws.id);
+      if (activeWorkspace === String(ws.id)) activeWorkspace = 'all';
+      workspacesCache = workspacesCache.filter(w => w.id !== ws.id);
+      renderWorkspaceTabs();
+      loadProjects(document.getElementById('project-search')?.value || '');
+      toast('Workspace deleted', 'success');
+    } catch (err) { toast(err.message, 'error'); }
+  };
+
+  setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 0);
+}
+
+function showWorkspaceModal(ws = null) {
+  const isEdit = !!ws;
+  showModal(`
+    <h2>${isEdit ? 'Rename Workspace' : 'New Workspace'}</h2>
+    <form id="ws-form">
+      <div class="form-group">
+        <label>Name *</label>
+        <input class="form-control" id="ws-name" value="${escHtml(ws?.name || '')}" required maxlength="80" />
+      </div>
+      <div id="ws-error" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button type="button" class="btn btn-secondary" id="ws-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Create'}</button>
+      </div>
+    </form>
+  `);
+
+  document.getElementById('ws-cancel').onclick = hideModal;
+  document.getElementById('ws-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('ws-error');
+    errEl.style.display = 'none';
+    const btn = e.target.querySelector('[type=submit]');
+    btn.disabled = true;
+    const name = document.getElementById('ws-name').value.trim();
+    try {
+      if (isEdit) {
+        const updated = await api.updateWorkspace(ws.id, { name });
+        workspacesCache = workspacesCache.map(w => w.id === ws.id ? updated : w);
+      } else {
+        const created = await api.createWorkspace({ name });
+        workspacesCache = [...workspacesCache, created];
+        activeWorkspace = String(created.id);
+      }
+      hideModal();
+      renderWorkspaceTabs();
+      loadProjects(document.getElementById('project-search')?.value || '');
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+      btn.disabled = false;
+    }
+  });
+}
+
+// ---- Projects grid ----
+
 async function loadProjects(q = '') {
   const grid = document.getElementById('projects-grid');
   if (!grid) return;
+  const user = JSON.parse(localStorage.getItem('orbit_user') || '{}');
+  const wsEnabled = !!user.workspacesEnabled;
+  const wsFilter = wsEnabled ? activeWorkspace : undefined;
   try {
-    const projects = await api.getProjects(q);
-    renderGrid(grid, projects);
+    const projects = await api.getProjects(q, undefined, wsFilter);
+    renderGrid(grid, projects, wsEnabled && activeWorkspace === 'all');
   } catch (err) {
     grid.innerHTML = `<p class="text-sm" style="color:var(--red)">${escHtml(err.message)}</p>`;
   }
 }
 
-function renderGrid(grid, projects) {
+function renderGrid(grid, projects, showWsBadge = false) {
   if (!projects.length) {
     grid.innerHTML = `
       <div class="empty-state">
@@ -61,7 +206,7 @@ function renderGrid(grid, projects) {
 
   grid.classList.toggle('single-row', projects.length <= 4);
 
-  grid.innerHTML = projects.map(p => projectCardHtml(p)).join('');
+  grid.innerHTML = projects.map(p => projectCardHtml(p, showWsBadge)).join('');
 
   grid.querySelectorAll('.project-card').forEach(card => {
     card.addEventListener('click', (e) => {
@@ -128,6 +273,24 @@ function showProjectMenu(btn, projectId) {
 
 export function showProjectModal(project = null, onSuccess = null) {
   const isEdit = !!project;
+  const user = JSON.parse(localStorage.getItem('orbit_user') || '{}');
+  const wsEnabled = !!user.workspacesEnabled;
+
+  const workspaceSelector = wsEnabled && workspacesCache.length ? `
+    <div class="form-group">
+      <label>Workspace</label>
+      <select class="form-control" id="p-workspace">
+        <option value="">— Unassigned —</option>
+        ${workspacesCache.map(ws => {
+          const selected = isEdit
+            ? (project.workspace_id === ws.id ? 'selected' : '')
+            : (activeWorkspace === String(ws.id) ? 'selected' : '');
+          return `<option value="${ws.id}" ${selected}>${escHtml(ws.name)}</option>`;
+        }).join('')}
+      </select>
+    </div>
+  ` : '';
+
   const html = `
     <h2>${isEdit ? 'Edit Project' : 'New Project'}</h2>
     <form id="project-form">
@@ -153,6 +316,7 @@ export function showProjectModal(project = null, onSuccess = null) {
         <label>Tags</label>
         <div id="p-tags-input"></div>
       </div>
+      ${workspaceSelector}
       <div id="p-error" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
         ${isEdit ? `
@@ -198,6 +362,8 @@ export function showProjectModal(project = null, onSuccess = null) {
     const pic = document.getElementById('p-picture').files[0];
     if (pic) fd.append('picture', pic);
     if (removePicture) fd.append('remove_picture', 'true');
+    const wsSelect = document.getElementById('p-workspace');
+    if (wsSelect) fd.append('workspace_id', wsSelect.value);
 
     try {
       if (isEdit) {
@@ -272,7 +438,7 @@ function riskSparklineHtml(tiers) {
   return `<span class="pc-risks" title="${total} open risk${total === 1 ? '' : 's'}">${html}</span>`;
 }
 
-function projectCardHtml(p) {
+function projectCardHtml(p, showWsBadge = false) {
   const stats = p.stats || { taskTotal: 0, taskCompleted: 0, overdueCount: 0, riskOpen: 0, riskTiers: { high: 0, medium: 0, low: 0 } };
   const { taskTotal, taskCompleted, overdueCount, riskOpen, riskTiers } = stats;
   const pct = taskTotal ? Math.round((taskCompleted / taskTotal) * 100) : 0;
@@ -316,6 +482,14 @@ function projectCardHtml(p) {
     ? `<div class="pc-prog-head"><span>${taskCompleted} of ${taskTotal} task${taskTotal === 1 ? '' : 's'}</span><span style="color:${pctColor};font-weight:600">${pct}%</span></div>`
     : `<div class="pc-prog-head"><span>No tasks yet</span><span style="color:var(--text3)">—</span></div>`;
 
+  let wsBadge = '';
+  if (showWsBadge && p.workspace_id) {
+    const ws = workspacesCache.find(w => w.id === p.workspace_id);
+    if (ws) {
+      wsBadge = `<div class="pc-workspace-badge">${ws.color ? `<span class="ws-dot ws-dot-sm" style="background:${escHtml(ws.color)}"></span>` : ''}${escHtml(ws.name)}</div>`;
+    }
+  }
+
   return `
     <div class="${cardClasses}" data-id="${p.id}">
       <div class="project-card-cover" ${coverBg}>
@@ -347,6 +521,7 @@ function projectCardHtml(p) {
           ${footerRight}
         </div>
         ${p.tags && p.tags.length ? `<div class="project-card-tags">${tagsHtml(p.tags)}</div>` : ''}
+        ${wsBadge}
       </div>
       <button class="project-card-menu-btn" data-id="${p.id}" title="Options" aria-label="Options">&#8942;</button>
     </div>
