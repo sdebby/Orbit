@@ -563,7 +563,7 @@ export function navbarHtml({ hideProfile = false } = {}) {
     : escHtml(initial);
   const profileItem = hideProfile
     ? ''
-    : `<button class="dropdown-item" id="nav-profile">Profile</button>`;
+    : `<button class="dropdown-item" id="nav-profile">Options</button>`;
   const adminItem = user.isAdmin
     ? `<button class="dropdown-item" id="nav-admin">Admin</button>`
     : '';
