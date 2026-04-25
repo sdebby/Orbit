@@ -41,10 +41,11 @@ export const api = {
   // Profile
   updateProfile: (formData) => request('PUT', '/profile', null, formData),
   deleteAccount: () => request('DELETE', '/profile'),
-  exportData: async ({ projects = true, templates = true } = {}) => {
+  exportData: async ({ projects = true, templates = true, workspaces = true } = {}) => {
     const params = new URLSearchParams();
-    if (!projects)  params.set('projects',  '0');
-    if (!templates) params.set('templates', '0');
+    if (!projects)   params.set('projects',   '0');
+    if (!templates)  params.set('templates',  '0');
+    if (!workspaces) params.set('workspaces', '0');
     const qs = params.toString();
     const res = await fetch(BASE + '/profile/export' + (qs ? '?' + qs : ''), { credentials: 'include' });
     if (!res.ok) {

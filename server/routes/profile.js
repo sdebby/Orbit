@@ -120,11 +120,32 @@ router.get('/export', requireAuth, (req, res) => {
 
   const includeProjects  = req.query.projects  !== '0';
   const includeTemplates = req.query.templates !== '0';
+  const includeWorkspaces = req.query.workspaces !== '0';
 
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     `<orbit-export version="1" exported-at="${new Date().toISOString()}">`,
   ];
+
+  // Build workspace name map for project cross-referencing
+  const wsMap = {};
+  if (includeWorkspaces && includeProjects) {
+    const workspaces = db.prepare(
+      'SELECT * FROM workspaces WHERE user_id = ? ORDER BY position ASC, created_at ASC'
+    ).all(req.user.userId);
+    if (workspaces.length) {
+      lines.push('  <workspaces>');
+      for (const ws of workspaces) {
+        wsMap[ws.id] = ws.name;
+        lines.push('    <workspace>');
+        lines.push(`      <name>${escXml(ws.name)}</name>`);
+        if (ws.color) lines.push(`      <color>${escXml(ws.color)}</color>`);
+        if (ws.icon)  lines.push(`      <icon>${escXml(ws.icon)}</icon>`);
+        lines.push('    </workspace>');
+      }
+      lines.push('  </workspaces>');
+    }
+  }
 
   if (includeProjects) {
     const projects = db.prepare('SELECT * FROM projects WHERE user_id = ? ORDER BY created_at ASC').all(req.user.userId);
@@ -138,6 +159,9 @@ router.get('/export', requireAuth, (req, res) => {
       lines.push('    <project>');
       lines.push(`      <title>${escXml(p.title)}</title>`);
       lines.push(`      <description>${escXml(p.description)}</description>`);
+      if (includeWorkspaces && p.workspace_id && wsMap[p.workspace_id]) {
+        lines.push(`      <workspace>${escXml(wsMap[p.workspace_id])}</workspace>`);
+      }
       lines.push('      <tags>');
       pTags.forEach(t => lines.push(`        <tag>${escXml(t)}</tag>`));
       lines.push('      </tags>');

@@ -262,6 +262,11 @@ export async function renderProfile(app) {
                     <input type="checkbox" id="include-templates" checked />
                     Templates
                   </label>
+                  ${user.workspacesEnabled ? `
+                  <label class="data-check-label">
+                    <input type="checkbox" id="include-workspaces" checked />
+                    Workspaces
+                  </label>` : ''}
                 </div>
               </div>
               <div class="settings-divider"></div>
@@ -441,8 +446,9 @@ export async function renderProfile(app) {
 
   // Export
   document.getElementById('export-btn').addEventListener('click', async () => {
-    const projects  = document.getElementById('include-projects').checked;
-    const templates = document.getElementById('include-templates').checked;
+    const projects   = document.getElementById('include-projects').checked;
+    const templates  = document.getElementById('include-templates').checked;
+    const workspaces = document.getElementById('include-workspaces')?.checked ?? false;
     if (!projects && !templates) {
       toast('Select at least one option to export', 'error');
       return;
@@ -451,7 +457,7 @@ export async function renderProfile(app) {
     btn.disabled = true;
     btn.textContent = 'Exporting…';
     try {
-      await api.exportData({ projects, templates });
+      await api.exportData({ projects, templates, workspaces });
       toast('Export downloaded', 'success');
     } catch (err) {
       toast(err.message, 'error');
