@@ -22,9 +22,11 @@ const upload = multer({
     destination: path.join(__dirname, '..', 'uploads'),
     filename: (req, file, cb) => cb(null, `risk-${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`),
   }),
-  limits: { fileSize: 5 * 1024 * 1024, fieldSize: 10 * 1024 },
+  limits: { fileSize: 3 * 1024 * 1024, fieldSize: 10 * 1024 },
   fileFilter: imageFilter,
 });
+
+const MAX_RISK_PHOTOS = 10;
 
 function ownsProject(userId, projectId) {
   return db.prepare('SELECT id FROM projects WHERE id = ? AND user_id = ?').get(projectId, userId);
@@ -139,6 +141,9 @@ router.put('/:id', requireAuth, upload.single('photo'), (req, res) => {
   if (tagsArr.length > 20) return res.status(400).json({ error: 'Too many tags (max 20)' });
   if (tagsArr.some(t => t.length > 50)) return res.status(400).json({ error: 'Each tag must be 50 characters or fewer' });
   const existingPhotos = JSON.parse(risk.photos || '[]');
+  if (req.file && existingPhotos.length >= MAX_RISK_PHOTOS) {
+    return res.status(400).json({ error: `A risk can have at most ${MAX_RISK_PHOTOS} photos` });
+  }
   const photosArr = req.file ? [...existingPhotos, `/uploads/${req.file.filename}`] : existingPhotos;
 
   db.prepare(`

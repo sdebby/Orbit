@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
   destination: path.join(__dirname, '..', 'uploads'),
   filename: (req, file, cb) => cb(null, `project-${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`),
 });
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024, fieldSize: 10 * 1024 }, fileFilter: imageFilter });
+const upload = multer({ storage, limits: { fileSize: 3 * 1024 * 1024, fieldSize: 10 * 1024 }, fileFilter: imageFilter });
 
 function stripHtmlTags(str) {
   if (typeof str !== 'string') return str;

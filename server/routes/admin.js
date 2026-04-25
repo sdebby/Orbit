@@ -28,15 +28,15 @@ router.get('/stats', (req, res) => {
 router.get('/users', (req, res) => {
   const page = Math.max(1, parseInt(req.query.page) || 1);
   const limit = 20;
-  const offset = (page - 1) * limit;
   const q = (req.query.q || '').trim().toLowerCase();
 
-  const total = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
-  const users = db.prepare(
-    'SELECT id, email, username, profile_picture, created_at, last_active, email_verified, status FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?'
-  ).all(limit, offset);
+  // Emails are encrypted at rest, so search must happen in JS after decrypting.
+  // Load all users, filter, then paginate so search reaches users beyond page 1.
+  const all = db.prepare(
+    'SELECT id, email, username, profile_picture, created_at, last_active, email_verified, status FROM users ORDER BY created_at DESC'
+  ).all();
 
-  const mapped = users.map(u => ({
+  const mapped = all.map(u => ({
     id: u.id,
     email: decryptEmail(u.email),
     username: u.username,
@@ -47,12 +47,15 @@ router.get('/users', (req, res) => {
     status: u.status || 'active',
   }));
 
-  // Filter by search query (email or username) in JS since emails are encrypted
   const filtered = q
     ? mapped.filter(u => (u.email && u.email.toLowerCase().includes(q)) || (u.username && u.username.toLowerCase().includes(q)))
     : mapped;
 
-  res.json({ users: filtered, total, page, totalPages: Math.ceil(total / limit) });
+  const total = filtered.length;
+  const offset = (page - 1) * limit;
+  const pageUsers = filtered.slice(offset, offset + limit);
+
+  res.json({ users: pageUsers, total, page, totalPages: Math.max(1, Math.ceil(total / limit)) });
 });
 
 // GET /api/admin/users/:id — user detail + activity counts
@@ -105,8 +108,17 @@ router.post('/users/bulk-delete', (req, res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'No users selected' });
 
-  const targetIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id) && id !== req.user.userId);
-  if (!targetIds.length) return res.status(400).json({ error: 'Cannot delete your own admin account' });
+  const targetIds = [];
+  for (const id of ids) {
+    const n = Number(id);
+    if (!Number.isInteger(n) || n <= 0) {
+      return res.status(400).json({ error: 'Invalid user ID in request' });
+    }
+    if (n === req.user.userId) {
+      return res.status(400).json({ error: 'Cannot delete your own admin account' });
+    }
+    targetIds.push(n);
+  }
 
   const placeholders = targetIds.map(() => '?').join(',');
   const result = db.prepare(`DELETE FROM users WHERE id IN (${placeholders})`).run(...targetIds);
@@ -120,8 +132,18 @@ router.post('/users/bulk-status', (req, res) => {
   const validStatuses = ['active', 'deactivated', 'banned'];
   if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Invalid status' });
 
-  const targetIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id) && id !== req.user.userId);
-  if (!targetIds.length) return res.status(400).json({ error: 'Cannot modify your own account' });
+  const targetIds = [];
+  for (const id of ids) {
+    const n = Number(id);
+    if (!Number.isInteger(n) || n <= 0) {
+      return res.status(400).json({ error: 'Invalid user ID in request' });
+    }
+    if (n === req.user.userId) {
+      return res.status(400).json({ error: 'Cannot modify your own account' });
+    }
+    targetIds.push(n);
+  }
+  if (!targetIds.length) return res.status(400).json({ error: 'No users selected' });
 
   const placeholders = targetIds.map(() => '?').join(',');
   // Bump token_version to immediately invalidate sessions for affected users
@@ -164,7 +186,7 @@ router.post('/users/:id/reset-password', (req, res) => {
 
   const email = decryptEmail(user.email);
   const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/#/reset-password/${token}`;
-  sendPasswordResetEmail(email, resetLink).catch(console.error);
+  sendPasswordResetEmail(email, resetLink).catch(() => console.error(`[admin] reset email send failed for user #${targetId}`));
 
   res.json({ message: 'Password reset email sent' });
 });
@@ -177,10 +199,13 @@ router.get('/settings', (req, res) => {
   res.json(settings);
 });
 
+const ALLOWED_SETTING_KEYS = ['sample_project_enabled'];
+
 // PUT /api/admin/settings
 router.put('/settings', (req, res) => {
   const { key, value } = req.body;
   if (!key || typeof key !== 'string') return res.status(400).json({ error: 'key is required' });
+  if (!ALLOWED_SETTING_KEYS.includes(key)) return res.status(400).json({ error: 'Unknown setting key' });
   if (value === undefined || value === null) return res.status(400).json({ error: 'value is required' });
 
   db.prepare('INSERT OR REPLACE INTO admin_settings (key, value) VALUES (?, ?)').run(key, String(value));

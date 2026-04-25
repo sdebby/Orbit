@@ -6,13 +6,23 @@ if (!process.env.JWT_SECRET) {
 }
 const JWT_SECRET = process.env.JWT_SECRET;
 
+function parseCookie(cookieHeader, name) {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const trimmed = part.trim();
+    const eq = trimmed.indexOf('=');
+    if (eq < 0) continue;
+    if (trimmed.slice(0, eq) === name) return trimmed.slice(eq + 1);
+  }
+  return null;
+}
+
 function extractToken(req) {
   // 1. Bearer header (for backward compat / API clients)
   const header = req.headers['authorization'];
   if (header && header.startsWith('Bearer ')) return header.slice(7);
   // 2. HttpOnly cookie (primary auth mechanism)
-  const cookie = (req.headers.cookie || '').split(';').map(c => c.trim()).find(c => c.startsWith('orbit_token='));
-  return cookie ? cookie.split('=')[1] : null;
+  return parseCookie(req.headers.cookie, 'orbit_token');
 }
 
 function requireAuth(req, res, next) {
@@ -69,4 +79,4 @@ function signToken(userId, tokenVersion) {
   return jwt.sign({ userId, tokenVersion: tokenVersion || 0 }, JWT_SECRET, { expiresIn: '7d' });
 }
 
-module.exports = { requireAuth, requireAdmin, signToken, getAdminEmailHash };
+module.exports = { requireAuth, requireAdmin, signToken, getAdminEmailHash, parseCookie };

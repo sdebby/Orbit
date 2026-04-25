@@ -51,18 +51,58 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// Static files — uploads require authentication via HttpOnly cookie
+// Static files — uploads require authentication AND ownership of the referencing resource
 const jwt = require('jsonwebtoken');
+const db = require('./models/db');
+const { getAdminEmailHash, parseCookie } = require('./middleware/auth');
+
+const UPLOAD_FILENAME_RE = /^\/[a-zA-Z0-9][\w\-\.]*\.(jpg|jpeg|png)$/i;
+
+function userOwnsUpload(userId, filepath) {
+  if (db.prepare('SELECT 1 AS x FROM users WHERE id = ? AND profile_picture = ?').get(userId, filepath)) return true;
+  if (db.prepare('SELECT 1 AS x FROM projects WHERE picture = ? AND user_id = ?').get(filepath, userId)) return true;
+  if (db.prepare(`
+    SELECT 1 AS x FROM tasks t
+    JOIN buckets b ON t.bucket_id = b.id
+    JOIN projects p ON b.project_id = p.id
+    WHERE t.picture = ? AND p.user_id = ?
+  `).get(filepath, userId)) return true;
+  // Risk photos / solution_photos are stored as JSON arrays of paths.
+  // The path regex permits no quotes/backslashes, so a quoted needle uniquely matches one element.
+  const jsonNeedle = `%"${filepath}"%`;
+  if (db.prepare(`
+    SELECT 1 AS x FROM risks r
+    JOIN projects p ON r.project_id = p.id
+    WHERE p.user_id = ? AND (r.photos LIKE ? OR r.solution_photos LIKE ?)
+  `).get(userId, jsonNeedle, jsonNeedle)) return true;
+  return false;
+}
+
 app.use('/uploads', (req, res, next) => {
-  const cookie = (req.headers.cookie || '').split(';').map(c => c.trim()).find(c => c.startsWith('orbit_token='));
-  const token = cookie ? cookie.split('=')[1] : null;
+  const token = parseCookie(req.headers.cookie, 'orbit_token');
   if (!token) return res.status(401).json({ error: 'Authentication required' });
-  try {
-    jwt.verify(token, process.env.JWT_SECRET);
-    next();
-  } catch {
-    return res.status(401).json({ error: 'Invalid token' });
+
+  let payload;
+  try { payload = jwt.verify(token, process.env.JWT_SECRET); }
+  catch { return res.status(401).json({ error: 'Invalid token' }); }
+
+  const user = db.prepare('SELECT token_version, email_hash, status FROM users WHERE id = ?').get(payload.userId);
+  if (!user) return res.status(401).json({ error: 'User not found' });
+  if ((payload.tokenVersion || 0) !== (user.token_version || 0)) {
+    return res.status(401).json({ error: 'Session expired' });
   }
+  if (user.status === 'banned' || user.status === 'deactivated') {
+    return res.status(403).json({ error: 'Account not active' });
+  }
+
+  if (!UPLOAD_FILENAME_RE.test(req.path)) return res.status(400).json({ error: 'Invalid path' });
+
+  const adminHash = getAdminEmailHash();
+  if (adminHash && user.email_hash === adminHash) return next();
+
+  if (userOwnsUpload(payload.userId, `/uploads${req.path}`)) return next();
+
+  return res.status(403).json({ error: 'Forbidden' });
 }, express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, '..', 'client')));
 

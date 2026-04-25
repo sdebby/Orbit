@@ -23,7 +23,7 @@ const upload = multer({
     destination: path.join(__dirname, '..', 'uploads'),
     filename: (req, file, cb) => cb(null, `task-${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`),
   }),
-  limits: { fileSize: 5 * 1024 * 1024, fieldSize: 10 * 1024 },
+  limits: { fileSize: 3 * 1024 * 1024, fieldSize: 10 * 1024 },
   fileFilter: imageFilter,
 });
 
@@ -216,6 +216,8 @@ router.get('/:id/checklists', requireAuth, (req, res) => {
   res.json(items);
 });
 
+const MAX_CHECKLIST_ITEMS = 100;
+
 // POST /api/tasks/:id/checklists
 router.post('/:id/checklists', requireAuth, (req, res) => {
   const task = ownsTask(req.user.userId, req.params.id);
@@ -223,6 +225,10 @@ router.post('/:id/checklists', requireAuth, (req, res) => {
   const { text } = req.body;
   if (!text || !text.trim()) return res.status(400).json({ error: 'Text is required' });
   if (text.length > 500) return res.status(400).json({ error: 'Text must be 500 characters or fewer' });
+  const count = db.prepare('SELECT COUNT(*) AS c FROM task_checklists WHERE task_id = ?').get(req.params.id).c;
+  if (count >= MAX_CHECKLIST_ITEMS) {
+    return res.status(400).json({ error: `A task can have at most ${MAX_CHECKLIST_ITEMS} checklist items` });
+  }
   const maxPos = db.prepare('SELECT MAX(position) as m FROM task_checklists WHERE task_id = ?').get(req.params.id);
   const position = (maxPos.m || 0) + 1;
   const result = db.prepare('INSERT INTO task_checklists (task_id, text, position) VALUES (?, ?, ?)')

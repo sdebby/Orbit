@@ -41,7 +41,7 @@ router.post('/register', async (req, res) => {
     try { createSampleProject(result.lastInsertRowid); } catch (e) { console.error('Sample project creation failed:', e.message); }
 
     const verifyLink = `${process.env.APP_URL || 'http://localhost:3000'}/#/verify-email/${verifyToken}`;
-    sendVerificationEmail(emailNorm, verifyLink).catch(console.error);
+    sendVerificationEmail(emailNorm, verifyLink).catch(() => console.error('[register] verification email send failed'));
 
     res.status(201).json({ message: 'Account created. Please check your email to verify your account before signing in.' });
   } catch (err) {
@@ -96,8 +96,8 @@ router.post('/login', async (req, res) => {
   }, Math.max(0, MIN_LOGIN_MS - elapsed));
 });
 
-// GET /api/auth/verify-email/:token
-router.get('/verify-email/:token', (req, res) => {
+// POST /api/auth/verify-email/:token
+router.post('/verify-email/:token', (req, res) => {
   const { token } = req.params;
   if (!HEX_TOKEN_RE.test(token)) return res.status(400).json({ error: 'Invalid verification link' });
   const user = db.prepare('SELECT * FROM users WHERE verify_token = ?').get(token);
@@ -128,7 +128,7 @@ router.post('/forgot-password', (req, res) => {
       .run(token, expires, user.id);
 
     const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/#/reset-password/${token}`;
-    sendPasswordResetEmail(emailNorm, resetLink).catch(console.error);
+    sendPasswordResetEmail(emailNorm, resetLink).catch(() => console.error('[forgot-password] reset email send failed'));
   }
 
   // Always delay to the same minimum duration regardless of whether the user exists
