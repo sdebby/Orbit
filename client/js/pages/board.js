@@ -457,17 +457,12 @@ export async function renderBoard(app, params) {
         const task = tasks.find(t => t.id == card.dataset.id);
         if (!task) return;
         try {
-          const newTask = await api.createTask(bucket.id, {
+          const checklists = await api.getChecklists(task.id);
+          showTaskModal(bucket.id, null, {
             description: task.description + '-Copy',
             tags: task.tags || [],
+            checklists,
           });
-          const checklists = await api.getChecklists(task.id);
-          for (const item of checklists) {
-            await api.createChecklist(newTask.id, item.text);
-          }
-          await loadAll();
-          const freshTask = await api.getTask(newTask.id);
-          showTaskModal(bucket.id, freshTask);
         } catch {
           toast('Failed to duplicate task', 'error');
         }
@@ -797,14 +792,14 @@ export async function renderBoard(app, params) {
   }
 
   // ---- Task Modal ----
-  function showTaskModal(bucketId, task = null) {
+  function showTaskModal(bucketId, task = null, prefill = {}) {
     const isEdit = !!task;
     showModal(`
       <h2>${isEdit ? 'Edit Task' : 'New Task'}</h2>
       <form id="task-form">
         <div class="form-group">
           <label>Description *</label>
-          <input type="text" class="form-control" id="t-desc" required value="${escHtml(task?.description || '')}" dir="auto" />
+          <input type="text" class="form-control" id="t-desc" required value="${escHtml(task?.description || prefill.description || '')}" dir="auto" />
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -852,13 +847,13 @@ export async function renderBoard(app, params) {
       ...Object.values(itemsByBucket).flatMap(({ tasks }) => tasks.flatMap(t => t.tags || [])),
       ...projectRisks.flatMap(r => r.tags || []),
     ])];
-    const tagsWidget = tagsInput(document.getElementById('t-tags-input'), task?.tags || [], projectTags);
+    const tagsWidget = tagsInput(document.getElementById('t-tags-input'), task?.tags || prefill.tags || [], projectTags);
     document.getElementById('t-cancel').onclick = hideModal;
 
     // ---- Checklist logic ----
     const checklistContainer = document.getElementById('t-checklists');
     // Each entry: { id?: number, text: string, checked: boolean }
-    let checklistItems = [];
+    let checklistItems = prefill.checklists ? prefill.checklists.map(c => ({ text: c.text, checked: false })) : [];
 
     function renderChecklistItems() {
       if (!checklistItems.length) {
@@ -908,6 +903,8 @@ export async function renderBoard(app, params) {
       }).catch(() => {
         checklistContainer.innerHTML = '<p class="text-sm" style="color:var(--red)">Failed to load checklist.</p>';
       });
+    } else if (checklistItems.length) {
+      renderChecklistItems();
     }
 
     async function addChecklistItem() {
