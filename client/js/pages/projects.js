@@ -69,8 +69,6 @@ function renderWorkspaceTabs() {
   const container = document.getElementById('workspace-tabs');
   if (!container) return;
 
-  const allTab = `<button class="ws-tab ${activeWorkspace === 'all' ? 'active' : ''}" data-ws="all">All</button>`;
-
   const wsTabs = workspacesCache.map(ws => `
     <button class="ws-tab ${activeWorkspace === String(ws.id) ? 'active' : ''}" data-ws="${ws.id}">
       ${ws.icon ? `<span class="ws-icon">${escHtml(ws.icon)}</span>` : ws.color ? `<span class="ws-dot" style="background:${escHtml(ws.color)}"></span>` : ''}
@@ -79,7 +77,7 @@ function renderWorkspaceTabs() {
     </button>
   `).join('');
 
-  container.innerHTML = allTab + wsTabs;
+  container.innerHTML = wsTabs;
 
   container.querySelectorAll('.ws-tab').forEach(tab => {
     tab.addEventListener('click', (e) => {
