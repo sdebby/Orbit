@@ -379,7 +379,7 @@ export async function renderBoard(app, params) {
 
     col.innerHTML = `
       <div class="bucket-header">
-        <span class="bucket-title" title="${escHtml(bucket.title)}">${escHtml(bucket.title)}</span>
+        <span class="bucket-title" dir="auto" title="${escHtml(bucket.title)}">${escHtml(bucket.title)}</span>
         <span class="text-muted text-sm">${activeTasks.length}</span>
         <button class="bucket-menu-btn" title="Bucket options">&#8942;</button>
       </div>
@@ -551,7 +551,7 @@ export async function renderBoard(app, params) {
       row.className = `card-cl-item${item.checked ? ' done' : ''}`;
       row.innerHTML = `
         <button class="card-cl-check-btn${item.checked ? ' checked' : ''}" title="${item.checked ? 'Mark incomplete' : 'Mark done'}">${item.checked ? '&#10003;' : ''}</button>
-        <span class="card-cl-text">${escHtml(item.text)}</span>
+        <span class="card-cl-text" dir="auto">${escHtml(item.text)}</span>
       `;
       row.querySelector('.card-cl-check-btn').addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -633,7 +633,7 @@ export async function renderBoard(app, params) {
           <button class="task-check-btn ${t.completed_at ? 'checked' : ''}" title="${t.completed_at ? 'Mark as incomplete' : 'Mark as done'}">
             ${t.completed_at ? '&#10003;' : ''}
           </button>
-          <div class="card-description">${escHtml(t.description)}</div>
+          <div class="card-description" dir="auto">${escHtml(t.description)}</div>
         </div>
         ${t.checklist_total > 0 ? `
           <details class="card-checklist-section" data-task-id="${t.id}">
@@ -662,7 +662,7 @@ export async function renderBoard(app, params) {
         </div>
         <div class="card-type-badge risk">Risk</div>
         ${r.photos?.length ? `<img src="${escHtml(r.photos[0])}" style="width:100%;height:80px;object-fit:cover;border-radius:4px;margin-bottom:6px" />` : ''}
-        <div class="card-description">${escHtml(r.description)}</div>
+        <div class="card-description" dir="auto">${escHtml(r.description)}</div>
         <div class="card-footer">
           <span class="rpn-badge ${cls}" title="RPN = Severity × Probability × Detectability">RPN ${r.rpn}</span>
           <span class="status-badge ${escHtml(r.status)}">${escHtml(r.status)}</span>
@@ -679,7 +679,7 @@ export async function renderBoard(app, params) {
       <p class="text-sm text-muted" style="margin:-8px 0 12px">${escHtml(bucket.title)}</p>
       <form id="storyboard-form">
         <div class="form-group">
-          <textarea class="form-control" id="sb-text" rows="8" placeholder="Storyboard…">${escHtml(bucket.description || '')}</textarea>
+          <textarea class="form-control" id="sb-text" rows="8" placeholder="Storyboard…" dir="auto">${escHtml(bucket.description || '')}</textarea>
         </div>
         <div id="sb-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -739,11 +739,11 @@ export async function renderBoard(app, params) {
       <form id="bucket-form">
         <div class="form-group">
           <label>Title *</label>
-          <input class="form-control" id="b-title" value="${escHtml(bucket?.title || '')}" required />
+          <input class="form-control" id="b-title" value="${escHtml(bucket?.title || '')}" required dir="auto" />
         </div>
         <div class="form-group">
           <label>Description</label>
-          <textarea class="form-control" id="b-desc">${escHtml(bucket?.description || '')}</textarea>
+          <textarea class="form-control" id="b-desc" dir="auto">${escHtml(bucket?.description || '')}</textarea>
         </div>
         <div class="form-group">
           <label>Color</label>
@@ -804,7 +804,7 @@ export async function renderBoard(app, params) {
       <form id="task-form">
         <div class="form-group">
           <label>Description *</label>
-          <input type="text" class="form-control" id="t-desc" required value="${escHtml(task?.description || '')}" />
+          <input type="text" class="form-control" id="t-desc" required value="${escHtml(task?.description || '')}" dir="auto" />
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -837,7 +837,7 @@ export async function renderBoard(app, params) {
           <label>Checklist</label>
           <div id="t-checklists">${isEdit ? '<div class="spinner" style="width:16px;height:16px;margin:4px 0"></div>' : ''}</div>
           <div class="checklist-add-row">
-            <input type="text" id="t-new-checklist" class="form-control" placeholder="Add an item…" maxlength="500" />
+            <input type="text" id="t-new-checklist" class="form-control" placeholder="Add an item…" maxlength="500" dir="auto" />
             <button type="button" id="t-add-checklist" class="btn btn-secondary btn-sm">Add</button>
           </div>
         </div>
@@ -870,7 +870,7 @@ export async function renderBoard(app, params) {
           <button type="button" class="checklist-check-btn ${item.checked ? 'checked' : ''}" title="${item.checked ? 'Mark incomplete' : 'Mark done'}">
             ${item.checked ? '&#10003;' : ''}
           </button>
-          <span class="checklist-text ${item.checked ? 'done' : ''}">${escHtml(item.text)}</span>
+          <span class="checklist-text ${item.checked ? 'done' : ''}" dir="auto">${escHtml(item.text)}</span>
           <button type="button" class="checklist-delete-btn" title="Delete">&#10005;</button>
         </div>
       `).join('');
@@ -982,7 +982,7 @@ export async function renderBoard(app, params) {
       <form id="risk-form">
         <div class="form-group">
           <label>Description *</label>
-          <textarea class="form-control" id="r-desc" required>${escHtml(risk?.description || '')}</textarea>
+          <textarea class="form-control" id="r-desc" required dir="auto">${escHtml(risk?.description || '')}</textarea>
         </div>
 
         <div class="section-label" style="margin-top:16px">Risk Scoring</div>
@@ -1015,7 +1015,7 @@ export async function renderBoard(app, params) {
         </div>
         <div class="form-group">
           <label>Solution Description</label>
-          <textarea class="form-control" id="r-solution">${escHtml(risk?.solution_description || '')}</textarea>
+          <textarea class="form-control" id="r-solution" dir="auto">${escHtml(risk?.solution_description || '')}</textarea>
         </div>
         <div class="form-group">
           <label>Image</label>
@@ -1094,7 +1094,7 @@ export async function renderBoard(app, params) {
       <form id="tmpl-form">
         <div class="form-group">
           <label>Template name</label>
-          <input class="form-control" id="tmpl-name" required />
+          <input class="form-control" id="tmpl-name" required dir="auto" />
         </div>
         <div id="tmpl-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end">

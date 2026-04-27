@@ -145,7 +145,7 @@ function showWorkspaceModal(ws = null) {
     <form id="ws-form">
       <div class="form-group">
         <label>Name *</label>
-        <input class="form-control" id="ws-name" value="${escHtml(ws?.name || '')}" required maxlength="80" />
+        <input class="form-control" id="ws-name" value="${escHtml(ws?.name || '')}" required maxlength="80" dir="auto" />
       </div>
       <div class="form-group">
         <label>Icon</label>
@@ -319,11 +319,11 @@ export function showProjectModal(project = null, onSuccess = null) {
     <form id="project-form">
       <div class="form-group">
         <label>Title *</label>
-        <input class="form-control" id="p-title" value="${escHtml(project?.title || '')}" required />
+        <input class="form-control" id="p-title" value="${escHtml(project?.title || '')}" required dir="auto" />
       </div>
       <div class="form-group">
         <label>Description</label>
-        <textarea class="form-control" id="p-desc">${escHtml(project?.description || '')}</textarea>
+        <textarea class="form-control" id="p-desc" dir="auto">${escHtml(project?.description || '')}</textarea>
       </div>
       <div class="form-group">
         <label>Image</label>
@@ -533,8 +533,8 @@ function projectCardHtml(p, showWsBadge = false) {
         ` : ''}
       </div>
       <div class="project-card-body">
-        <div class="project-card-title">${escHtml(p.title)}</div>
-        ${p.description ? `<div class="project-card-desc">${escHtml(p.description)}</div>` : ''}
+        <div class="project-card-title" dir="auto">${escHtml(p.title)}</div>
+        ${p.description ? `<div class="project-card-desc" dir="auto">${escHtml(p.description)}</div>` : ''}
         <div class="pc-prog">
           ${progressHeader}
           <div class="pc-bar"><span style="width:${pct}%;background:${barGradient}"></span></div>
@@ -649,7 +649,7 @@ export function setupNavbar({ projectId } = {}) {
         } else {
           list.innerHTML = tasks.map(t => `
             <div class="notif-item" data-project-id="${t.project_id}" role="button" tabindex="0">
-              <div class="notif-item-desc">${escHtml(t.description)}</div>
+              <div class="notif-item-desc" dir="auto">${escHtml(t.description)}</div>
               <div class="notif-item-meta">${escHtml(t.project_title)} &bull; Due ${escHtml(t.due_date)}</div>
             </div>
           `).join('');

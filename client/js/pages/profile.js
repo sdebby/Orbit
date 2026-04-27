@@ -127,8 +127,6 @@ export async function renderProfile(app) {
     user = { ...user, ...fresh };
     localStorage.setItem('orbit_user', JSON.stringify(user));
   } catch { /* use cached */ }
-  const displayName = user.username || user.email || '';
-
   app.innerHTML = `
     <div class="app-layout">
       ${navbarHtml({ hideProfile: true })}
@@ -137,48 +135,40 @@ export async function renderProfile(app) {
 
           ${breadcrumbHtml()}
 
-          <!-- Profile card -->
-          <div class="profile-hero">
-            <div class="profile-avatar-wrap">
-              <div class="avatar-lg" id="profile-avatar">
-                ${user.profilePicture
-                  ? `<img src="${escHtml(user.profilePicture)}" alt="Avatar" />`
-                  : getInitials(user.email)
-                }
-              </div>
-              <label class="avatar-change-btn" title="Change photo">
-                &#9998;
-                <input type="file" id="avatar-file" accept="image/*" style="display:none" />
-              </label>
-            </div>
-            <div class="profile-hero-info">
-              <div class="profile-hero-name">${escHtml(displayName)}</div>
-              ${user.username ? `<div class="profile-hero-email">${escHtml(user.email || '')}</div>` : ''}
-              <div class="profile-hero-label">Account Settings</div>
-            </div>
-          </div>
-
-          <!-- Account card -->
-          <div class="settings-card">
-            <div class="settings-card-header">Account</div>
+          <!-- Identity card (avatar + display name) -->
+          <div class="settings-card profile-identity-card">
             <div class="settings-card-body">
-              <form id="account-form">
-                <div class="form-group" style="margin-bottom:0">
-                  <label>Display Name</label>
-                  <div style="display:flex;gap:8px">
-                    <input class="form-control" id="username-input" value="${escHtml(user.username || '')}" placeholder="Enter a display name" />
-                    <button type="submit" class="btn btn-primary" style="flex-shrink:0">Save</button>
+              <div class="profile-identity-row">
+                <div class="profile-avatar-wrap">
+                  <div class="avatar-lg" id="profile-avatar">
+                    ${user.profilePicture
+                      ? `<img src="${escHtml(user.profilePicture)}" alt="Avatar" />`
+                      : getInitials(user.email)
+                    }
                   </div>
-                  <div class="form-hint">This name is shown on your profile. Leave blank to use your email.</div>
+                  <label class="avatar-change-btn" title="Change photo">
+                    &#9998;
+                    <input type="file" id="avatar-file" accept="image/*" style="display:none" />
+                  </label>
                 </div>
-              </form>
+                <div class="profile-identity-info">
+                  <div class="profile-identity-email">${escHtml(user.email || '')}</div>
+                  <form id="account-form">
+                    <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+                      <input class="form-control" id="username-input" value="${escHtml(user.username || '')}" placeholder="Display name" maxlength="40" autocomplete="off" dir="auto" />
+                      <button type="submit" class="btn btn-primary btn-sm" style="flex-shrink:0">Save</button>
+                    </div>
+                    <div class="form-hint" style="margin-top:4px">Shown on your profile. Leave blank to use your email.</div>
+                  </form>
+                </div>
+              </div>
             </div>
           </div>
 
           <!-- Appearance card -->
           <div class="settings-card">
-            <div class="settings-card-header">Appearance</div>
             <div class="settings-card-body">
+              <div class="settings-section-label">Appearance</div>
               <div class="settings-row">
                 <div>
                   <div class="settings-row-title">Dark Mode</div>
@@ -205,8 +195,8 @@ export async function renderProfile(app) {
 
           <!-- Workspaces card -->
           <div class="settings-card">
-            <div class="settings-card-header">Workspaces</div>
             <div class="settings-card-body">
+              <div class="settings-section-label">Workspaces</div>
               <div class="settings-row">
                 <div>
                   <div class="settings-row-title">Enable Workspaces</div>
@@ -222,8 +212,8 @@ export async function renderProfile(app) {
 
           <!-- Notifications card -->
           <div class="settings-card">
-            <div class="settings-card-header">Notifications</div>
             <div class="settings-card-body">
+              <div class="settings-section-label">Notifications</div>
               <div class="settings-row">
                 <div>
                   <div class="settings-row-title">Task Digest Email</div>
@@ -246,8 +236,8 @@ export async function renderProfile(app) {
 
           <!-- Data card -->
           <div class="settings-card">
-            <div class="settings-card-header">Data</div>
             <div class="settings-card-body">
+              <div class="settings-section-label">Data</div>
               <div class="settings-row" style="flex-wrap:wrap;gap:8px;align-items:center">
                 <div>
                   <div class="settings-row-title">Include</div>
@@ -298,10 +288,10 @@ export async function renderProfile(app) {
             </div>
           </div>
 
-          <!-- Change Password card -->
+          <!-- Security card -->
           <div class="settings-card">
-            <div class="settings-card-header">Change Password</div>
             <div class="settings-card-body">
+              <div class="settings-section-label">Security</div>
               <form id="password-form">
                 <div class="form-group">
                   <label>Current Password</label>
@@ -324,8 +314,8 @@ export async function renderProfile(app) {
 
           <!-- Danger Zone card -->
           <div class="settings-card danger-zone">
-            <div class="settings-card-header">Danger Zone</div>
             <div class="settings-card-body">
+              <div class="settings-section-label">Danger Zone</div>
               <div class="settings-row">
                 <div>
                   <div class="settings-row-title" style="color:var(--red)">Delete Account</div>
@@ -422,8 +412,6 @@ export async function renderProfile(app) {
       stored.username = updated.username;
       localStorage.setItem('orbit_user', JSON.stringify(stored));
       toast('Display name updated', 'success');
-      // Refresh hero name
-      document.querySelector('.profile-hero-name').textContent = updated.username || updated.email;
     } catch (err) {
       toast(err.message, 'error');
     } finally {
