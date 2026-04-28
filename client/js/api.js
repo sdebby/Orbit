@@ -38,6 +38,9 @@ export const api = {
   resetPassword: (token, password) => request('POST', `/auth/reset-password/${token}`, { password }),
   verifyEmail: (token) => request('POST', `/auth/verify-email/${token}`),
 
+  // Feedback
+  sendFeedback: (message) => request('POST', '/feedback', { message }),
+
   // Profile
   updateProfile: (formData) => request('PUT', '/profile', null, formData),
   deleteAccount: () => request('DELETE', '/profile'),

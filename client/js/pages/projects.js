@@ -594,6 +594,7 @@ export function navbarHtml({ hideProfile = false } = {}) {
           <button class="dropdown-item" id="nav-templates">Edit templates</button>
           ${adminItem}
           <div class="dropdown-divider"></div>
+          <button class="dropdown-item" id="nav-feedback">Feedback</button>
           <button class="dropdown-item dropdown-item-danger" id="nav-logout">Sign out</button>
         </div>
       </div>
@@ -679,9 +680,47 @@ export function setupNavbar({ projectId } = {}) {
     if (dropdown) dropdown.hidden = true;
     navigate('/admin');
   });
+  document.getElementById('nav-feedback')?.addEventListener('click', () => {
+    if (dropdown) dropdown.hidden = true;
+    showFeedbackModal();
+  });
   document.getElementById('nav-logout')?.addEventListener('click', () => {
     localStorage.removeItem('orbit_user');
     document.cookie = 'orbit_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Strict';
     navigate('/login');
   });
+}
+
+function showFeedbackModal() {
+  showModal(`
+    <h2>Send Feedback</h2>
+    <p class="text-sm text-muted" style="margin:-8px 0 16px">Share your thoughts, suggestions, or report a problem.</p>
+    <form id="feedback-form">
+      <div class="form-group">
+        <label>Message *</label>
+        <textarea class="form-control" id="fb-message" rows="6" maxlength="5000" placeholder="Your feedback…" required dir="auto"></textarea>
+      </div>
+      <div id="fb-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button type="button" class="btn btn-secondary" id="fb-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Submit</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('fb-cancel').onclick = hideModal;
+  document.getElementById('feedback-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('fb-err');
+    const btn = e.target.querySelector('[type=submit]');
+    const message = document.getElementById('fb-message').value.trim();
+    if (!message) return;
+    btn.disabled = true;
+    hideModal();
+    try {
+      await api.sendFeedback(message);
+      toast('Feedback sent — thank you!', 'success');
+    } catch (err) {
+      toast(err.message || 'Failed to send feedback', 'error');
+    }
+  };
 }

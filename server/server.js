@@ -139,6 +139,14 @@ const profileLimiter = rateLimit({
   message: { error: 'Too many profile requests, please try again later' },
 });
 
+const feedbackLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many feedback submissions, please try again later' },
+});
+
 // API Routes
 app.use('/api/auth/verify-email', verifyEmailLimiter);
 app.use('/api/auth/forgot-password', forgotPasswordLimiter);
@@ -150,6 +158,7 @@ app.use('/api/projects/:projectId/risks', require('./routes/risks'));
 app.use('/api/profile', profileLimiter, require('./routes/profile'));
 app.use('/api/admin', require('./routes/admin'));
 
+app.use('/api/feedback', feedbackLimiter, require('./routes/feedback'));
 app.use('/api/templates', require('./routes/templates'));
 app.use('/api/workspaces', require('./routes/workspaces'));
 

@@ -183,4 +183,31 @@ function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-module.exports = { sendPasswordResetEmail, sendVerificationEmail, sendTaskReminderEmail, sendUndueTasksDigestEmail };
+async function sendFeedbackEmail(toEmail, { username, userEmail, message }) {
+  const subject = 'User Feedback';
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+      <h2 style="color:#1a56db;border-bottom:2px solid #e5e7eb;padding-bottom:12px">User Feedback</h2>
+      <div style="background:#f9fafb;border-left:4px solid #1a56db;padding:16px;border-radius:4px;margin:16px 0">
+        <p style="margin:0 0 8px"><strong>Name:</strong> ${escapeHtml(username || '—')}</p>
+        <p style="margin:0 0 8px"><strong>Email:</strong> ${escapeHtml(userEmail)}</p>
+      </div>
+      <h3 style="margin:20px 0 8px;font-size:14px;color:#374151">Message</h3>
+      <div style="background:#fff;border:1px solid #e5e7eb;padding:16px;border-radius:4px;white-space:pre-wrap;font-size:14px;line-height:1.6">${escapeHtml(message)}</div>
+    </div>
+  `;
+
+  if (!transporter) {
+    console.log(`[EMAIL - no SMTP configured]\nTo: ${toEmail}\nSubject: ${subject}\nFrom: ${userEmail}\n${message}`);
+    return;
+  }
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || 'no-reply@orbit.app',
+    to: toEmail,
+    subject,
+    html,
+  });
+}
+
+module.exports = { sendPasswordResetEmail, sendVerificationEmail, sendTaskReminderEmail, sendUndueTasksDigestEmail, sendFeedbackEmail };
