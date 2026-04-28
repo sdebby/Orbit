@@ -128,6 +128,9 @@ try {
 
 // Migrations — ADD COLUMN is idempotent via try/catch (SQLite has no IF NOT EXISTS for columns)
 try { _db.exec('ALTER TABLE buckets ADD COLUMN color TEXT'); } catch {}
+try { _db.exec('ALTER TABLE buckets ADD COLUMN storyboard TEXT'); } catch {}
+// Backfill: existing description text was previously used as the storyboard
+try { _db.exec("UPDATE buckets SET storyboard = description WHERE storyboard IS NULL AND description IS NOT NULL AND description != ''"); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN username TEXT'); } catch {}
 try { _db.exec('ALTER TABLE tasks ADD COLUMN completed_at INTEGER'); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0'); } catch {}

@@ -695,17 +695,24 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 }
 .projects-search-box input::placeholder { color: var(--text3); }
 .projects-add-btn {
-  background: var(--accent);
-  color: #fff; border: none;
-  border-radius: var(--radius);
-  padding: 7px 14px;
-  font-size: 13px; font-weight: 500;
+  background: linear-gradient(135deg, #3ecf6a 0%, #1e9e50 55%, #157a3b 100%);
+  color: #fff;
+  border: 1.5px dashed rgba(255,255,255,0.45);
+  border-radius: 50%;
+  width: 30px; height: 30px;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 700;
   font-family: 'DM Sans', sans-serif;
+  line-height: 1;
   cursor: pointer;
-  transition: opacity .15s;
-  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(21,122,59,0.45), inset 0 1px 0 rgba(255,255,255,0.22);
+  transition: box-shadow .15s, filter .15s;
 }
-.projects-add-btn:hover { opacity: 0.88; }
+.projects-add-btn:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 3px 10px rgba(21,122,59,0.55), inset 0 1px 0 rgba(255,255,255,0.22);
+}
 
 .projects-grid {
   padding: 20px;
@@ -1620,7 +1627,7 @@ details.done-tasks-section[open] > .done-tasks-toggle::before {
 .dropdown-item.danger { color: var(--red); }
 
 /* ========= Bucket Color Swatches ========= */
-.color-swatches { display: flex; gap: 8px; flex-wrap: wrap; padding: 4px 0; }
+.color-swatches { display: grid; grid-template-columns: repeat(10, 28px); gap: 8px; padding: 4px 0; }
 .color-swatch {
   width: 28px; height: 28px;
   border-radius: 50%;

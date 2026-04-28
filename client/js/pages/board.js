@@ -76,8 +76,7 @@ export async function renderBoard(app, params) {
           <h2 id="board-title">Loading…</h2>
           <span id="board-project-desc" class="board-project-desc"></span>
           <span class="navbar-spacer"></span>
-          <button class="btn btn-secondary btn-sm" id="edit-project-btn" style="display:none">&#9998; Edit Project</button>
-          <input type="search" class="form-control" id="board-search" placeholder="Search tasks &amp; risks…" style="max-width:220px" />
+          <input type="search" class="form-control" id="board-search" placeholder="Search tasks, tags &amp; risks…" style="max-width:220px" />
         </div>
         <div class="board-scroll" id="board-scroll">
           <div class="spinner-wrap" style="height:300px;flex:1"><div class="spinner"></div></div>
@@ -97,13 +96,6 @@ export async function renderBoard(app, params) {
       document.getElementById('board-title').textContent = project.title;
       const descEl = document.getElementById('board-project-desc');
       if (descEl) descEl.textContent = project.description || '';
-
-      // Show and wire Edit Project button
-      const editBtn = document.getElementById('edit-project-btn');
-      if (editBtn) {
-        editBtn.style.display = '';
-        editBtn.onclick = () => showProjectModal(project, loadAll);
-      }
 
       // Apply project picture as a banner on the board header only
       // Only allow /uploads/ paths to prevent CSS injection
@@ -149,21 +141,33 @@ export async function renderBoard(app, params) {
     const filteredProjectRisks = filterItems(projectRisks);
     const risksHidden = !!localStorage.getItem(`orbit_risks_hidden_${projectId}`);
 
+    // During search, hide buckets with no matching tasks and the risks column
+    // when no risks match — show only relevant results
+    const visibleBuckets = searchQ
+      ? buckets.filter(b => filterItems(itemsByBucket[b.id]?.tasks || []).length > 0)
+      : buckets;
+    const showRiskCol = !risksHidden && (!searchQ || filteredProjectRisks.length > 0);
+
     // Insert columns in saved order (risks col position persisted per project)
     const savedRiskPos = parseInt(localStorage.getItem(`orbit_risks_pos_${projectId}`), 10);
 
-    if (!risksHidden) {
+    if (showRiskCol) {
       const riskCol = createProjectRiskCol(filteredProjectRisks);
-      buckets.forEach((bucket, i) => {
-        if (!isNaN(savedRiskPos) && i === savedRiskPos) scroll.appendChild(riskCol);
-        scroll.appendChild(createBucketCol(bucket));
-      });
-      // Append risk col at end if not yet inserted (no saved pos, or pos >= buckets.length)
-      if (isNaN(savedRiskPos) || savedRiskPos >= buckets.length) {
+      if (searchQ) {
+        visibleBuckets.forEach(bucket => scroll.appendChild(createBucketCol(bucket)));
         scroll.appendChild(riskCol);
+      } else {
+        visibleBuckets.forEach((bucket, i) => {
+          if (!isNaN(savedRiskPos) && i === savedRiskPos) scroll.appendChild(riskCol);
+          scroll.appendChild(createBucketCol(bucket));
+        });
+        // Append risk col at end if not yet inserted (no saved pos, or pos >= buckets.length)
+        if (isNaN(savedRiskPos) || savedRiskPos >= visibleBuckets.length) {
+          scroll.appendChild(riskCol);
+        }
       }
     } else {
-      buckets.forEach(bucket => scroll.appendChild(createBucketCol(bucket)));
+      visibleBuckets.forEach(bucket => scroll.appendChild(createBucketCol(bucket)));
     }
 
     // Add Bucket + Add template bucket — stacked in one column
@@ -385,7 +389,7 @@ export async function renderBoard(app, params) {
       </div>
 
       <div class="bucket-storyboard">
-        <button type="button" class="btn btn-secondary btn-sm bucket-storyboard-btn ${bucket.description ? 'has-content' : ''}" title="Open storyboard">Storyboard</button>
+        <button type="button" class="btn btn-secondary btn-sm bucket-storyboard-btn ${bucket.storyboard ? 'has-content' : ''}" title="Open storyboard">Storyboard</button>
       </div>
 
       <div class="bucket-section tasks-section">
@@ -410,9 +414,9 @@ export async function renderBoard(app, params) {
       const header = col.querySelector('.bucket-header');
       header.style.background = bucket.color;
       header.style.borderRadius = 'var(--radius) var(--radius) 0 0';
-      header.querySelector('.bucket-title').style.color = '#fff';
-      header.querySelector('.bucket-menu-btn').style.color = 'rgba(255,255,255,0.8)';
-      col.querySelector('.text-muted').style.color = 'rgba(255,255,255,0.7)';
+      header.querySelector('.bucket-title').style.color = '#2a2a2a';
+      header.querySelector('.bucket-menu-btn').style.color = 'rgba(0,0,0,0.55)';
+      col.querySelector('.text-muted').style.color = 'rgba(0,0,0,0.45)';
     }
 
     // Storyboard: click opens modal
@@ -674,16 +678,22 @@ export async function renderBoard(app, params) {
       <p class="text-sm text-muted" style="margin:-8px 0 12px">${escHtml(bucket.title)}</p>
       <form id="storyboard-form">
         <div class="form-group">
-          <textarea class="form-control" id="sb-text" rows="8" placeholder="Storyboard…" dir="auto">${escHtml(bucket.description || '')}</textarea>
+          <textarea class="form-control" id="sb-text" rows="8" placeholder="Storyboard…" dir="auto">${escHtml(bucket.storyboard || '')}</textarea>
         </div>
         <div id="sb-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
-        <div style="display:flex;gap:8px;justify-content:flex-end">
+        <div style="display:flex;gap:8px;align-items:center">
+          <button type="button" class="btn btn-secondary danger" id="sb-clear">Clear Storyboard</button>
+          <span style="flex:1"></span>
           <button type="button" class="btn btn-secondary" id="sb-cancel">Cancel</button>
           <button type="submit" class="btn btn-primary">Save</button>
         </div>
       </form>
     `);
     document.getElementById('sb-cancel').onclick = hideModal;
+    document.getElementById('sb-clear').onclick = () => {
+      document.getElementById('sb-text').value = '';
+      document.getElementById('sb-text').focus();
+    };
     document.getElementById('storyboard-form').onsubmit = async (e) => {
       e.preventDefault();
       const errEl = document.getElementById('sb-err');
@@ -691,8 +701,8 @@ export async function renderBoard(app, params) {
       btn.disabled = true;
       const val = document.getElementById('sb-text').value;
       try {
-        await api.updateBucket(bucket.id, { description: val });
-        bucket.description = val;
+        await api.updateBucket(bucket.id, { storyboard: val });
+        bucket.storyboard = val;
         toast('Storyboard saved', 'success');
         hideModal();
         await loadAll();
@@ -706,15 +716,28 @@ export async function renderBoard(app, params) {
 
   // ---- Bucket Modal ----
   const BUCKET_COLORS = [
-    { label: 'None',   value: '' },
-    { label: 'Blue',   value: '#0052cc' },
-    { label: 'Teal',   value: '#00875a' },
-    { label: 'Purple', value: '#8777d9' },
-    { label: 'Red',    value: '#de350b' },
-    { label: 'Orange', value: '#ff8b00' },
-    { label: 'Cyan',   value: '#00b8d9' },
-    { label: 'Pink',   value: '#e91e8c' },
-    { label: 'Yellow', value: '#f5cd47' },
+    // Row 1 — red → yellow → green
+    { label: 'None',     value: '' },
+    { label: 'Red',      value: '#F2A3A3' },
+    { label: 'Coral',    value: '#F5B8AA' },
+    { label: 'Orange',   value: '#F9C99A' },
+    { label: 'Peach',    value: '#FDCFAA' },
+    { label: 'Gold',     value: '#F0D8A0' },
+    { label: 'Yellow',   value: '#F5E08A' },
+    { label: 'Sage',     value: '#B8D8B0' },
+    { label: 'Green',    value: '#9DD4A0' },
+    { label: 'Mint',     value: '#A8EDD8' },
+    // Row 2 — teal → blue → purple → pink
+    { label: 'Teal',     value: '#7DC9B8' },
+    { label: 'Cyan',     value: '#90D5E8' },
+    { label: 'Sky',      value: '#A8D8F0' },
+    { label: 'Blue',     value: '#9BB5E0' },
+    { label: 'Lavender', value: '#C8B8F0' },
+    { label: 'Purple',   value: '#BBA8E8' },
+    { label: 'Lilac',    value: '#E0B8F5' },
+    { label: 'Mauve',    value: '#E0B8D0' },
+    { label: 'Pink',     value: '#F5A8C8' },
+    { label: 'Rose',     value: '#F0B8C0' },
   ];
 
   function showBucketModal(bucket = null) {

@@ -13,6 +13,11 @@ export async function renderProjects(app) {
   app.innerHTML = `
     <div class="app-layout">
       ${navbarHtml()}
+      ${wsEnabled ? `
+      <div class="workspace-tabs-bar">
+        <div class="workspace-tabs" id="workspace-tabs"></div>
+        <button class="workspace-add-btn" id="workspace-add-btn" title="New Workspace">+</button>
+      </div>` : ''}
       <div class="projects-subbar">
         <h1 class="projects-subbar-title">My Projects</h1>
         <div class="projects-subbar-right">
@@ -20,14 +25,9 @@ export async function renderProjects(app) {
             <div class="projects-search-icon"></div>
             <input type="search" id="project-search" placeholder="Search projects…" />
           </div>
-          <button class="projects-add-btn" id="new-project-btn">+ New Project</button>
+          <button class="projects-add-btn" id="new-project-btn" title="New Project">+</button>
         </div>
       </div>
-      ${wsEnabled ? `
-      <div class="workspace-tabs-bar">
-        <div class="workspace-tabs" id="workspace-tabs"></div>
-        <button class="workspace-add-btn" id="workspace-add-btn" title="New Workspace">+</button>
-      </div>` : ''}
       <div class="page-content">
         <div id="projects-grid" class="projects-grid">
           <div class="spinner-wrap" style="height:200px"><div class="spinner"></div></div>
@@ -263,7 +263,7 @@ function showProjectMenu(btn, projectId) {
   const menu = document.createElement('div');
   menu.className = 'dropdown';
   menu.innerHTML = `
-    <button class="dropdown-item" id="pm-edit">Edit</button>
+    <button class="dropdown-item" id="pm-edit">Edit project details</button>
     <button class="dropdown-item danger" id="pm-delete">Delete</button>
   `;
   document.body.appendChild(menu);
@@ -324,7 +324,7 @@ export function showProjectModal(project = null, onSuccess = null) {
         <textarea class="form-control" id="p-desc" dir="auto">${escHtml(project?.description || '')}</textarea>
       </div>
       <div class="form-group">
-        <label>Image</label>
+        <label>Cover</label>
         ${project?.picture ? `
           <div style="margin-bottom:8px;position:relative">
             <img id="p-picture-preview" src="${escHtml(project.picture)}" style="width:100%;height:100px;object-fit:cover;border-radius:4px" />

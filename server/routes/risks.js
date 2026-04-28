@@ -22,7 +22,7 @@ const upload = multer({
     destination: path.join(__dirname, '..', 'uploads'),
     filename: (req, file, cb) => cb(null, `risk-${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`),
   }),
-  limits: { fileSize: 3 * 1024 * 1024, fieldSize: 10 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024, fieldSize: 10 * 1024 },
   fileFilter: imageFilter,
 });
 

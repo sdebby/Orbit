@@ -36,7 +36,7 @@ const storage = multer.diskStorage({
   destination: path.join(__dirname, '..', 'uploads'),
   filename: (req, file, cb) => cb(null, `avatar-${req.user.userId}-${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`),
 });
-const upload = multer({ storage, limits: { fileSize: 2 * 1024 * 1024 }, fileFilter: imageFilter });
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: imageFilter });
 
 // PUT /api/profile  — update profile picture or password
 router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) => {
