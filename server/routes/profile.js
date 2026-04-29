@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../models/db');
 const { requireAuth } = require('../middleware/auth');
 const { hashPassword, verifyPassword, decryptEmail, safePicturePath } = require('../utils/hash');
+const { collectUserUploadPaths, deleteUploadFiles } = require('../utils/uploads');
 const { signToken } = require('../middleware/auth');
 
 function stripHtmlTags(str) {
@@ -259,7 +260,9 @@ router.get('/export', requireAuth, (req, res) => {
 
 // DELETE /api/profile  — permanently delete account and all data
 router.delete('/', requireAuth, (req, res) => {
+  const uploadPaths = collectUserUploadPaths(req.user.userId);
   db.prepare('DELETE FROM users WHERE id = ?').run(req.user.userId);
+  deleteUploadFiles(uploadPaths);
   res.json({ message: 'Account deleted' });
 });
 

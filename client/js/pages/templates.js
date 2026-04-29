@@ -112,7 +112,7 @@ function showRenameModal(id, currentName) {
         <input class="form-control" id="rename-input" value="${escHtml(currentName)}" required />
       </div>
       <div id="rename-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
+      <div style="display:flex;gap:8px;justify-content:space-between">
         <button type="button" class="btn btn-secondary" id="rename-cancel">Cancel</button>
         <button type="submit" class="btn btn-primary">Save</button>
       </div>

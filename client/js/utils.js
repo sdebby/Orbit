@@ -19,6 +19,9 @@ export function showModal(html, onClose) {
   };
   closeBtn.onclick = close;
   overlay.onclick = (e) => { if (e.target === overlay) close(); };
+  const hasCancel = Array.from(content.querySelectorAll('button'))
+    .some(b => b.textContent.trim() === 'Cancel');
+  closeBtn.style.display = hasCancel ? 'none' : '';
   const firstField = content.querySelector('input:not([type=hidden]):not([type=file]), textarea, select');
   if (firstField) requestAnimationFrame(() => firstField.focus());
 }

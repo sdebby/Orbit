@@ -682,9 +682,9 @@ export async function renderBoard(app, params) {
         </div>
         <div id="sb-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button type="button" class="btn btn-secondary danger" id="sb-clear">Clear Storyboard</button>
-          <span style="flex:1"></span>
           <button type="button" class="btn btn-secondary" id="sb-cancel">Cancel</button>
+          <span style="flex:1"></span>
+          <button type="button" class="btn btn-secondary danger" id="sb-clear">Clear Storyboard</button>
           <button type="submit" class="btn btn-primary">Save</button>
         </div>
       </form>
@@ -768,7 +768,7 @@ export async function renderBoard(app, params) {
           <div class="color-swatches">${swatchesHtml}</div>
         </div>
         <div id="b-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
-        <div style="display:flex;gap:8px;justify-content:flex-end">
+        <div style="display:flex;gap:8px;justify-content:space-between">
           <button type="button" class="btn btn-secondary" id="b-cancel">Cancel</button>
           <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Create Bucket'}</button>
         </div>
@@ -860,7 +860,7 @@ export async function renderBoard(app, params) {
           </div>
         </div>
         <div id="t-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
-        <div style="display:flex;gap:8px;justify-content:flex-end">
+        <div style="display:flex;gap:8px;justify-content:space-between">
           <button type="button" class="btn btn-secondary" id="t-cancel">Cancel</button>
           <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Create Task'}</button>
         </div>
@@ -1047,7 +1047,7 @@ export async function renderBoard(app, params) {
           <div id="r-tags-input"></div>
         </div>
         <div id="r-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
-        <div style="display:flex;gap:8px;justify-content:flex-end">
+        <div style="display:flex;gap:8px;justify-content:space-between">
           <button type="button" class="btn btn-secondary" id="r-cancel">Cancel</button>
           <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Create Risk'}</button>
         </div>
@@ -1117,7 +1117,7 @@ export async function renderBoard(app, params) {
           <input class="form-control" id="tmpl-name" required dir="auto" />
         </div>
         <div id="tmpl-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
-        <div style="display:flex;gap:8px;justify-content:flex-end">
+        <div style="display:flex;gap:8px;justify-content:space-between">
           <button type="button" class="btn btn-secondary" id="tmpl-cancel">Cancel</button>
           <button type="submit" class="btn btn-primary">Save</button>
         </div>

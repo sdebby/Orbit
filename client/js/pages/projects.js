@@ -164,7 +164,7 @@ function showWorkspaceModal(ws = null) {
         </div>
       </div>
       <div id="ws-error" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
+      <div style="display:flex;gap:8px;justify-content:space-between">
         <button type="button" class="btn btn-secondary" id="ws-cancel">Cancel</button>
         <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Create'}</button>
       </div>
@@ -351,17 +351,15 @@ export function showProjectModal(project = null, onSuccess = null) {
       ${workspaceSelector}
       <div id="p-error" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn btn-secondary" id="p-cancel">Cancel</button>
         ${isEdit ? `
           <label class="theme-toggle" style="font-size:13px;font-weight:500;color:var(--text)">
             <input type="checkbox" id="p-risks-toggle" ${localStorage.getItem('orbit_risks_hidden_' + project.id) ? '' : 'checked'}>
             <span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span>
             Add risk bucket
           </label>
-        ` : '<span></span>'}
-        <div style="display:flex;gap:8px">
-          <button type="button" class="btn btn-secondary" id="p-cancel">Cancel</button>
-          <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Create Project'}</button>
-        </div>
+        ` : ''}
+        <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Create Project'}</button>
       </div>
     </form>
   `;
@@ -712,7 +710,7 @@ function showFeedbackModal() {
         <textarea class="form-control" id="fb-message" rows="6" maxlength="5000" placeholder="Your feedback…" required dir="auto"></textarea>
       </div>
       <div id="fb-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
+      <div style="display:flex;gap:8px;justify-content:space-between">
         <button type="button" class="btn btn-secondary" id="fb-cancel">Cancel</button>
         <button type="submit" class="btn btn-primary">Submit</button>
       </div>

@@ -5,6 +5,7 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { sha512, decryptEmail } = require('../utils/hash');
 const crypto = require('crypto');
 const { sendPasswordResetEmail } = require('../utils/email');
+const { collectUserUploadPaths, deleteUploadFiles } = require('../utils/uploads');
 
 // All admin routes require auth + admin check
 router.use(requireAuth, requireAdmin);
@@ -99,7 +100,9 @@ router.delete('/users/:id', (req, res) => {
   const user = db.prepare('SELECT id FROM users WHERE id = ?').get(targetId);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
+  const uploadPaths = collectUserUploadPaths(targetId);
   db.prepare('DELETE FROM users WHERE id = ?').run(targetId);
+  deleteUploadFiles(uploadPaths);
   res.json({ message: 'User deleted' });
 });
 
@@ -120,8 +123,13 @@ router.post('/users/bulk-delete', (req, res) => {
     targetIds.push(n);
   }
 
+  const allUploadPaths = [];
+  for (const id of targetIds) {
+    allUploadPaths.push(...collectUserUploadPaths(id));
+  }
   const placeholders = targetIds.map(() => '?').join(',');
   const result = db.prepare(`DELETE FROM users WHERE id IN (${placeholders})`).run(...targetIds);
+  deleteUploadFiles(allUploadPaths);
   res.json({ message: `${result.changes} user(s) deleted` });
 });
 
