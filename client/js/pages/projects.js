@@ -6,7 +6,15 @@ let searchTimeout = null;
 let activeWorkspace = 'all';
 let workspacesCache = [];
 
+const LAST_WORKSPACE_KEY = 'orbit_last_workspace';
+
+function setActiveWorkspace(val) {
+  activeWorkspace = val;
+  localStorage.setItem(LAST_WORKSPACE_KEY, val);
+}
+
 export async function renderProjects(app) {
+  activeWorkspace = localStorage.getItem(LAST_WORKSPACE_KEY) || 'all';
   const user = JSON.parse(localStorage.getItem('orbit_user') || '{}');
   const wsEnabled = !!user.workspacesEnabled;
 
@@ -62,6 +70,9 @@ async function loadWorkspaceTabs() {
   } catch {
     workspacesCache = [];
   }
+  if (activeWorkspace !== 'all' && !workspacesCache.some(w => String(w.id) === activeWorkspace)) {
+    setActiveWorkspace('all');
+  }
   renderWorkspaceTabs();
 }
 
@@ -82,7 +93,7 @@ function renderWorkspaceTabs() {
   container.querySelectorAll('.ws-tab').forEach(tab => {
     tab.addEventListener('click', (e) => {
       if (e.target.closest('.ws-tab-menu-btn')) return;
-      activeWorkspace = tab.dataset.ws;
+      setActiveWorkspace(tab.dataset.ws);
       renderWorkspaceTabs();
       loadProjects(document.getElementById('project-search')?.value || '');
     });
@@ -121,7 +132,7 @@ function showWorkspaceMenu(btn, ws) {
     if (!confirm(`Delete workspace "${ws.name}"? Its projects will become unassigned.`)) return;
     try {
       await api.deleteWorkspace(ws.id);
-      if (activeWorkspace === String(ws.id)) activeWorkspace = 'all';
+      if (activeWorkspace === String(ws.id)) setActiveWorkspace('all');
       workspacesCache = workspacesCache.filter(w => w.id !== ws.id);
       renderWorkspaceTabs();
       loadProjects(document.getElementById('project-search')?.value || '');
@@ -185,7 +196,7 @@ function showWorkspaceModal(ws = null) {
       } else {
         const created = await api.createWorkspace({ name, icon });
         workspacesCache = [...workspacesCache, created];
-        activeWorkspace = String(created.id);
+        setActiveWorkspace(String(created.id));
       }
       hideModal();
       renderWorkspaceTabs();
