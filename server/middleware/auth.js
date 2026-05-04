@@ -30,7 +30,7 @@ function requireAuth(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Authentication required' });
 
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    req.user = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
     req.token = token;
 
     // Verify token_version matches — rejects tokens issued before a password reset/change
@@ -76,7 +76,7 @@ function requireAdmin(req, res, next) {
 }
 
 function signToken(userId, tokenVersion) {
-  return jwt.sign({ userId, tokenVersion: tokenVersion || 0 }, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign({ userId, tokenVersion: tokenVersion || 0 }, JWT_SECRET, { expiresIn: '7d', algorithm: 'HS256' });
 }
 
 module.exports = { requireAuth, requireAdmin, signToken, getAdminEmailHash, parseCookie };

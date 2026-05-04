@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const db = require('../models/db');
-const { sha512, hashPassword, verifyPassword, encryptEmail, decryptEmail } = require('../utils/hash');
+const { sha256, sha512, hashPassword, verifyPassword, encryptEmail, decryptEmail } = require('../utils/hash');
 const { requireAuth, signToken, getAdminEmailHash } = require('../middleware/auth');
 const { sendPasswordResetEmail, sendVerificationEmail } = require('../utils/email');
 const { createSampleProject } = require('../utils/sampleProject');
@@ -30,13 +30,14 @@ router.post('/register', async (req, res) => {
   const emailHash = sha512(emailNorm);
   const passwordHash = await hashPassword(password);
   const verifyToken = crypto.randomBytes(32).toString('hex');
+  const verifyTokenHash = sha256(verifyToken);
   const verifyExpires = Date.now() + 1800000; // 30 minutes
 
   try {
     const encEmail = encryptEmail(emailNorm);
     const result = db.prepare(
       'INSERT INTO users (email, email_hash, password_hash, email_verified, verify_token, verify_token_expires) VALUES (?, ?, ?, 0, ?, ?)'
-    ).run(encEmail, emailHash, passwordHash, verifyToken, verifyExpires);
+    ).run(encEmail, emailHash, passwordHash, verifyTokenHash, verifyExpires);
 
     try { createSampleProject(result.lastInsertRowid); } catch (e) { console.error('Sample project creation failed:', e.message); }
 
@@ -100,7 +101,7 @@ router.post('/login', async (req, res) => {
 router.post('/verify-email/:token', (req, res) => {
   const { token } = req.params;
   if (!HEX_TOKEN_RE.test(token)) return res.status(400).json({ error: 'Invalid verification link' });
-  const user = db.prepare('SELECT * FROM users WHERE verify_token = ?').get(token);
+  const user = db.prepare('SELECT * FROM users WHERE verify_token = ?').get(sha256(token));
 
   if (!user) return res.status(400).json({ error: 'Invalid or already used verification link' });
   if (user.verify_token_expires < Date.now()) return res.status(400).json({ error: 'Verification link has expired. Please register again.' });
@@ -125,7 +126,7 @@ router.post('/forgot-password', (req, res) => {
     const token = crypto.randomBytes(32).toString('hex');
     const expires = Date.now() + 3600000; // 1 hour
     db.prepare('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?')
-      .run(token, expires, user.id);
+      .run(sha256(token), expires, user.id);
 
     const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/#/reset-password/${token}`;
     sendPasswordResetEmail(emailNorm, resetLink).catch(() => console.error('[forgot-password] reset email send failed'));
@@ -144,7 +145,7 @@ router.get('/validate-reset-token/:token', (req, res) => {
   const { token } = req.params;
   if (!HEX_TOKEN_RE.test(token)) return res.status(400).json({ error: 'Invalid reset link' });
 
-  const user = db.prepare('SELECT id, reset_token_expires FROM users WHERE reset_token = ?').get(token);
+  const user = db.prepare('SELECT id, reset_token_expires FROM users WHERE reset_token = ?').get(sha256(token));
   if (!user) return res.status(400).json({ error: 'This reset link has already been used' });
   if (user.reset_token_expires < Date.now()) {
     // Clean up expired token
@@ -162,7 +163,7 @@ router.post('/reset-password/:token', async (req, res) => {
   const pwErr = validatePassword(password);
   if (pwErr) return res.status(400).json({ error: pwErr });
 
-  const user = db.prepare('SELECT * FROM users WHERE reset_token = ?').get(token);
+  const user = db.prepare('SELECT * FROM users WHERE reset_token = ?').get(sha256(token));
   if (!user) return res.status(400).json({ error: 'This reset link has already been used' });
   if (user.reset_token_expires < Date.now()) {
     db.prepare('UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?').run(user.id);

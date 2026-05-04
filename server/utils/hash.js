@@ -5,6 +5,10 @@ function sha512(text) {
   return crypto.createHash('sha512').update(text).digest('hex');
 }
 
+function sha256(text) {
+  return crypto.createHash('sha256').update(text).digest('hex');
+}
+
 async function hashPassword(password) {
   const salt = crypto.randomBytes(16);
   return argon2id({
@@ -85,4 +89,4 @@ function decryptEmail(stored) {
   }
 }
 
-module.exports = { sha512, hashPassword, verifyPassword, encryptEmail, decryptEmail, safePicturePath };
+module.exports = { sha256, sha512, hashPassword, verifyPassword, encryptEmail, decryptEmail, safePicturePath };

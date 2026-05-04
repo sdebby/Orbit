@@ -83,7 +83,7 @@ app.use('/uploads', (req, res, next) => {
   if (!token) return res.status(401).json({ error: 'Authentication required' });
 
   let payload;
-  try { payload = jwt.verify(token, process.env.JWT_SECRET); }
+  try { payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] }); }
   catch { return res.status(401).json({ error: 'Invalid token' }); }
 
   const user = db.prepare('SELECT token_version, email_hash, status FROM users WHERE id = ?').get(payload.userId);

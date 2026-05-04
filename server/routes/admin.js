@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../models/db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
-const { sha512, decryptEmail } = require('../utils/hash');
+const { sha256, sha512, decryptEmail } = require('../utils/hash');
 const crypto = require('crypto');
 const { sendPasswordResetEmail } = require('../utils/email');
 const { collectUserUploadPaths, deleteUploadFiles } = require('../utils/uploads');
@@ -190,7 +190,7 @@ router.post('/users/:id/reset-password', (req, res) => {
   const token = crypto.randomBytes(32).toString('hex');
   const expires = Date.now() + 3600000; // 1 hour
   db.prepare('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?')
-    .run(token, expires, targetId);
+    .run(sha256(token), expires, targetId);
 
   const email = decryptEmail(user.email);
   const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/#/reset-password/${token}`;

@@ -139,23 +139,16 @@ try { _db.exec('ALTER TABLE users ADD COLUMN verify_token_expires INTEGER'); } c
 // Mark existing accounts (created before verification was introduced) as already verified
 try { _db.exec("UPDATE users SET email_verified = 1 WHERE email_verified IS NULL OR (verify_token IS NULL AND email_verified = 0)"); } catch {}
 
-// Encrypt existing plaintext emails at rest, and re-encrypt with current key
+// One-time migration: encrypt any plaintext emails that predate at-rest encryption.
+// Re-encryption for key rotation is handled by scripts/migrate-email-encryption.js, not boot.
 try {
-  const { encryptEmail, decryptEmail } = require('../utils/hash');
-  const allUsers = _db.prepare('SELECT id, email FROM users').all();
-  const updateStmt = _db.prepare('UPDATE users SET email = ? WHERE id = ?');
-  for (const row of allUsers) {
-    if (row.email && row.email.includes('@')) {
-      // Plaintext email — encrypt it
-      updateStmt.run([encryptEmail(row.email), row.id]);
-    } else if (row.email && process.env.EMAIL_ENCRYPTION_KEY) {
-      // Already encrypted — re-encrypt with current (dedicated) key
-      const plain = decryptEmail(row.email);
-      if (plain && plain.includes('@')) {
-        const freshEnc = encryptEmail(plain);
-        if (freshEnc !== row.email) updateStmt.run([freshEnc, row.id]);
-      }
-    }
+  const alreadyMigrated = _db.prepare('SELECT key FROM admin_settings WHERE key = ?').get(['email_encryption_migration_v1']);
+  if (!alreadyMigrated) {
+    const { encryptEmail } = require('../utils/hash');
+    const plainRows = _db.prepare("SELECT id, email FROM users WHERE email LIKE '%@%'").all();
+    const updateStmt = _db.prepare('UPDATE users SET email = ? WHERE id = ?');
+    for (const row of plainRows) updateStmt.run([encryptEmail(row.email), row.id]);
+    _db.prepare('INSERT INTO admin_settings (key, value) VALUES (?, ?)').run(['email_encryption_migration_v1', 'done']);
   }
 } catch (e) { console.error('Email encryption migration:', e.message); }
 
@@ -170,6 +163,17 @@ try { _db.exec('ALTER TABLE users ADD COLUMN workspaces_enabled INTEGER DEFAULT 
 try { _db.exec("ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'light'"); } catch {}
 try { _db.exec('ALTER TABLE projects ADD COLUMN workspace_id INTEGER'); } catch {}
 try { _db.exec('ALTER TABLE workspaces ADD COLUMN icon TEXT'); } catch {}
+
+// One-time migration: invalidate all plaintext reset/verify tokens stored before hashing was introduced.
+// Tracked via admin_settings so subsequent restarts don't null out valid sha256-hashed tokens.
+try {
+  const alreadyMigrated = _db.prepare('SELECT key FROM admin_settings WHERE key = ?').get(['token_hash_migration_v1']);
+  if (!alreadyMigrated) {
+    _db.exec("UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE reset_token IS NOT NULL");
+    _db.exec("UPDATE users SET verify_token = NULL, verify_token_expires = NULL WHERE verify_token IS NOT NULL");
+    _db.prepare('INSERT INTO admin_settings (key, value) VALUES (?, ?)').run(['token_hash_migration_v1', 'done']);
+  }
+} catch (e) { console.error('Token hash migration:', e.message); }
 
 // Migrate risks from bucket-level to project-level
 try {
