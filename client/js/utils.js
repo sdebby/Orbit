@@ -13,12 +13,21 @@ export function showModal(html, onClose) {
   document.getElementById('modal-overlay').classList.remove('hidden');
   const closeBtn = document.getElementById('modal-close');
   const overlay = document.getElementById('modal-overlay');
+  const onKeyDown = (e) => {
+    if (e.key === 'Escape') { close(); return; }
+    if (e.key === 'Enter' && e.ctrlKey) {
+      const submit = content.querySelector('button[type="submit"]');
+      if (submit) submit.click();
+    }
+  };
   const close = () => {
     overlay.classList.add('hidden');
+    document.removeEventListener('keydown', onKeyDown);
     if (onClose) onClose();
   };
   closeBtn.onclick = close;
   overlay.onclick = (e) => { if (e.target === overlay) close(); };
+  document.addEventListener('keydown', onKeyDown);
   const hasCancel = Array.from(content.querySelectorAll('button'))
     .some(b => b.textContent.trim() === 'Cancel');
   closeBtn.style.display = hasCancel ? 'none' : '';
