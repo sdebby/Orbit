@@ -9,8 +9,9 @@ import { renderProfile } from './pages/profile.js';
 import { renderTemplates } from './pages/templates.js';
 // admin.js is dynamically imported below to avoid exposing admin API endpoints to all users
 
-// Apply saved theme before first render
-const savedTheme = localStorage.getItem('orbit_theme') || 'light';
+// Apply saved theme before first render — prefer per-account value stored in orbit_user
+const savedUser = JSON.parse(localStorage.getItem('orbit_user') || '{}');
+const savedTheme = savedUser.theme || localStorage.getItem('orbit_theme') || 'light';
 document.body.setAttribute('data-theme', savedTheme);
 
 const app = document.getElementById('app');

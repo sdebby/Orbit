@@ -175,7 +175,7 @@ export async function renderProfile(app) {
                   <div class="settings-row-desc">Switch between light and dark theme</div>
                 </div>
                 <label class="theme-toggle">
-                  <input type="checkbox" id="dark-mode-toggle" ${localStorage.getItem('orbit_theme') === 'dark' ? 'checked' : ''} />
+                  <input type="checkbox" id="dark-mode-toggle" ${(user.theme || 'light') === 'dark' ? 'checked' : ''} />
                   <span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span>
                 </label>
               </div>
@@ -352,10 +352,22 @@ export async function renderProfile(app) {
     }
   });
 
-  document.getElementById('dark-mode-toggle').addEventListener('change', (e) => {
+  document.getElementById('dark-mode-toggle').addEventListener('change', async (e) => {
     const theme = e.target.checked ? 'dark' : 'light';
     document.body.setAttribute('data-theme', theme);
-    localStorage.setItem('orbit_theme', theme);
+    const fd = new FormData();
+    fd.append('theme', theme);
+    try {
+      await api.updateProfile(fd);
+      const stored = JSON.parse(localStorage.getItem('orbit_user') || '{}');
+      stored.theme = theme;
+      localStorage.setItem('orbit_user', JSON.stringify(stored));
+      localStorage.setItem('orbit_theme', theme);
+    } catch {
+      e.target.checked = !e.target.checked;
+      document.body.setAttribute('data-theme', e.target.checked ? 'dark' : 'light');
+      toast('Failed to save theme preference', 'error');
+    }
   });
 
   document.getElementById('sounds-toggle').addEventListener('change', (e) => {

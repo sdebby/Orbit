@@ -89,7 +89,10 @@ export function renderLogin(app) {
 
     try {
       const data = await api.login(email, password);
-      localStorage.setItem('orbit_user', JSON.stringify({ userId: data.userId, email: data.email, username: data.username, profilePicture: data.profilePicture, isAdmin: data.isAdmin, workspacesEnabled: data.workspacesEnabled || 0 }));
+      const theme = data.theme || 'light';
+      localStorage.setItem('orbit_user', JSON.stringify({ userId: data.userId, email: data.email, username: data.username, profilePicture: data.profilePicture, isAdmin: data.isAdmin, workspacesEnabled: data.workspacesEnabled || 0, theme }));
+      localStorage.setItem('orbit_theme', theme);
+      document.body.setAttribute('data-theme', theme);
       navigate('/projects');
     } catch (err) {
       errEl.textContent = err.message === 'EMAIL_NOT_VERIFIED'
