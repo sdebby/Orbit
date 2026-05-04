@@ -381,7 +381,7 @@ button.navbar-avatar:hover { opacity: 0.8; }
 /* ========= Main content ========= */
 .page-content {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
