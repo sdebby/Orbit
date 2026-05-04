@@ -13,6 +13,7 @@
 - Custom column colors
 - Real-time task search & tag filtering
 - Board banner image from project cover photo
+- Keyboard shortcuts in modals: **ESC** to cancel, **Ctrl+Enter** to confirm
 
 ### Task Management
 - Priority levels: Low / Medium / High
@@ -33,6 +34,11 @@
 - Task due-date reminder emails
 - Configurable digest emails: Off / Daily / Every 3 days / Weekly / Every 2 weeks
 - Digest groups pending tasks by project and bucket with overdue items highlighted
+
+### Profile & Preferences
+- Dark / light theme toggle — preference stored per account and synced across all devices
+- Configurable digest email frequency
+- Avatar upload and display name
 
 ### Authentication & Security
 - JWT in httpOnly, SameSite=Strict cookie
