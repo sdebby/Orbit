@@ -13,6 +13,11 @@ const transporter = process.env.SMTP_HOST
     })
   : null;
 
+function maskEmail(email) {
+  const at = String(email).indexOf('@');
+  return at > 0 ? `***${email.slice(at)}` : '***';
+}
+
 async function sendPasswordResetEmail(toEmail, resetLink) {
   const subject = 'Orbit — Password Reset';
   const html = `
@@ -22,7 +27,7 @@ async function sendPasswordResetEmail(toEmail, resetLink) {
   `;
 
   if (!transporter) {
-    console.log(`[EMAIL - no SMTP configured]\nTo: ${toEmail}\nSubject: ${subject}\n${resetLink}`);
+    console.log(`[EMAIL] No SMTP configured — password reset link generated for ${maskEmail(toEmail)}`);
     return;
   }
 
@@ -43,7 +48,7 @@ async function sendVerificationEmail(toEmail, verifyLink) {
   `;
 
   if (!transporter) {
-    console.log(`[EMAIL - no SMTP configured]\nTo: ${toEmail}\nSubject: ${subject}\n${verifyLink}`);
+    console.log(`[EMAIL] No SMTP configured — verification link generated for ${maskEmail(toEmail)}`);
     return;
   }
 
@@ -129,7 +134,7 @@ async function sendUndueTasksDigestEmail(toEmail, { tasks, interval }) {
   `;
 
   if (!transporter) {
-    console.log(`[EMAIL - no SMTP configured]\nTo: ${toEmail}\nSubject: ${subject}\n${tasks.length} pending tasks`);
+    console.log(`[EMAIL] No SMTP configured — digest for ${maskEmail(toEmail)} (${tasks.length} tasks)`);
     return;
   }
 
@@ -166,7 +171,7 @@ async function sendTaskReminderEmail(toEmail, { taskDescription, bucketTitle, bu
   `;
 
   if (!transporter) {
-    console.log(`[EMAIL - no SMTP configured]\nTo: ${toEmail}\nSubject: ${subject}\nTask: ${taskDescription}`);
+    console.log(`[EMAIL] No SMTP configured — task reminder for ${maskEmail(toEmail)}`);
     return;
   }
 
@@ -198,7 +203,7 @@ async function sendFeedbackEmail(toEmail, { username, userEmail, message }) {
   `;
 
   if (!transporter) {
-    console.log(`[EMAIL - no SMTP configured]\nTo: ${toEmail}\nSubject: ${subject}\nFrom: ${userEmail}\n${message}`);
+    console.log(`[EMAIL] No SMTP configured — feedback from ${maskEmail(userEmail)}`);
     return;
   }
 

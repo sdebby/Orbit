@@ -51,6 +51,12 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
+// Prevent caching of all API responses (sensitive user data must not be stored by proxies/browsers)
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+
 // Static files — uploads require authentication AND ownership of the referencing resource
 const jwt = require('jsonwebtoken');
 const db = require('./models/db');

@@ -54,6 +54,9 @@ router.post('/register', async (req, res) => {
 // POST /api/auth/login
 // MIN_LOGIN_MS ensures constant-time response to prevent user enumeration via timing
 const MIN_LOGIN_MS = 300;
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+
 router.post('/login', async (req, res) => {
   const start = Date.now();
   const { email, password } = req.body;
@@ -73,11 +76,38 @@ router.post('/login', async (req, res) => {
     setTimeout(() => res.status(status).json(body), Math.max(0, MIN_LOGIN_MS - elapsed));
   }
 
-  if (!user || !valid) return delayedResponse(401, { error: 'Invalid email or password' });
+  // Reset expired lockout so the attempt counter starts fresh after the penalty period
+  if (user && user.login_locked_until && user.login_locked_until <= Date.now()) {
+    db.prepare('UPDATE users SET login_attempts = 0, login_locked_until = NULL WHERE id = ?').run(user.id);
+    user.login_attempts = 0;
+    user.login_locked_until = null;
+  }
+
+  // Return 429 if the account is still within the lockout window
+  if (user && user.login_locked_until && user.login_locked_until > Date.now()) {
+    const retryAfterSec = Math.ceil((user.login_locked_until - Date.now()) / 1000);
+    return delayedResponse(429, { error: `Account temporarily locked. Try again in ${retryAfterSec} seconds.` });
+  }
+
+  if (!user || !valid) {
+    if (user) {
+      const attempts = (user.login_attempts || 0) + 1;
+      if (attempts >= MAX_LOGIN_ATTEMPTS) {
+        db.prepare('UPDATE users SET login_attempts = ?, login_locked_until = ? WHERE id = ?')
+          .run(attempts, Date.now() + LOCKOUT_MS, user.id);
+      } else {
+        db.prepare('UPDATE users SET login_attempts = ? WHERE id = ?').run(attempts, user.id);
+      }
+    }
+    return delayedResponse(401, { error: 'Invalid email or password' });
+  }
 
   if (!user.email_verified) {
     return delayedResponse(403, { error: 'EMAIL_NOT_VERIFIED' });
   }
+
+  // Successful login — clear lockout state
+  db.prepare('UPDATE users SET login_attempts = 0, login_locked_until = NULL WHERE id = ?').run(user.id);
 
   const adminHash = getAdminEmailHash();
   const isAdmin = adminHash ? user.email_hash === adminHash : false;

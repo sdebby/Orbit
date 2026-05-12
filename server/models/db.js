@@ -163,6 +163,8 @@ try { _db.exec('ALTER TABLE users ADD COLUMN workspaces_enabled INTEGER DEFAULT 
 try { _db.exec("ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'light'"); } catch {}
 try { _db.exec('ALTER TABLE projects ADD COLUMN workspace_id INTEGER'); } catch {}
 try { _db.exec('ALTER TABLE workspaces ADD COLUMN icon TEXT'); } catch {}
+try { _db.exec('ALTER TABLE users ADD COLUMN login_attempts INTEGER DEFAULT 0'); } catch {}
+try { _db.exec('ALTER TABLE users ADD COLUMN login_locked_until INTEGER'); } catch {}
 
 // One-time migration: invalidate all plaintext reset/verify tokens stored before hashing was introduced.
 // Tracked via admin_settings so subsequent restarts don't null out valid sha256-hashed tokens.
