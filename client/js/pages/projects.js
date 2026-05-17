@@ -6,6 +6,26 @@ let searchTimeout = null;
 let activeWorkspace = 'all';
 let workspacesCache = [];
 
+// Bucket-palette colors used as stable per-user avatar tints (matches design system swatches).
+const AVATAR_COLORS = ['#0052cc', '#00875a', '#8777d9', '#de350b', '#ff8b00', '#00b8d9', '#e91e8c', '#185FA5'];
+function avatarColor(userId) {
+  return AVATAR_COLORS[(parseInt(userId, 10) || 0) % AVATAR_COLORS.length];
+}
+function avatarInitial(member) {
+  // members[] from the list endpoint omits email (PII); fall back to '?' when username is missing.
+  return ((member.username || member.email || '?').charAt(0) || '?').toUpperCase();
+}
+function avatarLabel(member) {
+  return member.username || member.email || (member.isOwner ? 'Owner' : 'Member');
+}
+function avatarHtml(member) {
+  const label = avatarLabel(member);
+  if (member.profilePicture) {
+    return `<div class="pc-av" title="${escHtml(label)}"><img src="${escHtml(member.profilePicture)}" alt="" /></div>`;
+  }
+  return `<div class="pc-av" style="background:${avatarColor(member.userId)}" title="${escHtml(label)}">${escHtml(avatarInitial(member))}</div>`;
+}
+
 const LAST_WORKSPACE_KEY = 'orbit_last_workspace';
 
 function setActiveWorkspace(val) {
@@ -251,8 +271,15 @@ function renderGrid(grid, projects, showWsBadge = false) {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const projectId = btn.dataset.id;
-      showProjectMenu(btn, projectId);
+      const role = btn.dataset.role || 'owner';
+      showProjectMenu(btn, projectId, role);
     });
+  });
+
+  // Mark "new share" badges as seen on first view of the projects page
+  grid.querySelectorAll('.project-card[data-unseen="1"]').forEach(card => {
+    const pid = card.dataset.id;
+    api.markShareSeen(pid).catch(() => { /* non-critical */ });
   });
 
   grid.querySelectorAll('.favorite-star').forEach(btn => {
@@ -269,26 +296,49 @@ function renderGrid(grid, projects, showWsBadge = false) {
   });
 }
 
-function showProjectMenu(btn, projectId) {
+function showProjectMenu(btn, projectId, role = 'owner') {
   document.querySelectorAll('.dropdown').forEach(d => d.remove());
   const menu = document.createElement('div');
   menu.className = 'dropdown';
-  menu.innerHTML = `
-    <button class="dropdown-item" id="pm-edit">Edit project details</button>
-    <button class="dropdown-item danger" id="pm-delete">Delete</button>
-  `;
+  const currentUser = JSON.parse(localStorage.getItem('orbit_user') || '{}');
+
+  if (role === 'owner') {
+    menu.innerHTML = `
+      <button class="dropdown-item" id="pm-edit">Edit project details</button>
+      <button class="dropdown-item" id="pm-share">Share project…</button>
+      <button class="dropdown-item danger" id="pm-delete">Delete</button>
+    `;
+  } else {
+    // Editor / viewer: can't touch project meta or shares. They can only place
+    // this project into one of their own workspaces.
+    menu.innerHTML = `
+      <div class="dropdown-header">Shared with you &middot; ${escHtml(role)}</div>
+      ${currentUser.workspacesEnabled ? `
+        <div class="dropdown-divider"></div>
+        <div class="dropdown-section-label">Move to workspace</div>
+        <div id="pm-ws-list" class="dropdown-ws-list">
+          <div class="dropdown-item" style="opacity:.6">Loading…</div>
+        </div>
+      ` : ''}
+    `;
+  }
+
   document.body.appendChild(menu);
   const rect = btn.getBoundingClientRect();
   menu.style.top = `${rect.bottom + window.scrollY + 4}px`;
   menu.style.left = `${rect.right + window.scrollX - menu.offsetWidth}px`;
 
-  menu.querySelector('#pm-edit').onclick = async () => {
+  menu.querySelector('#pm-edit')?.addEventListener('click', async () => {
     menu.remove();
     const projects = await api.getProjects();
     const project = projects.find(p => p.id == projectId);
     if (project) showProjectModal(project, loadProjects);
-  };
-  menu.querySelector('#pm-delete').onclick = async () => {
+  });
+  menu.querySelector('#pm-share')?.addEventListener('click', () => {
+    menu.remove();
+    showShareModal(projectId);
+  });
+  menu.querySelector('#pm-delete')?.addEventListener('click', async () => {
     menu.remove();
     if (!confirm('Delete this project? This cannot be undone.')) return;
     try {
@@ -298,9 +348,209 @@ function showProjectMenu(btn, projectId) {
     } catch (err) {
       toast(err.message, 'error');
     }
-  };
+  });
+
+  // Populate workspace list for shared cards
+  const wsListEl = menu.querySelector('#pm-ws-list');
+  if (wsListEl) {
+    populateShareWorkspacePicker(wsListEl, projectId, menu);
+  }
 
   setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 0);
+}
+
+async function populateShareWorkspacePicker(container, projectId, menu) {
+  // Find the project's current share workspace so we can mark it active
+  const projects = await api.getProjects().catch(() => []);
+  const project = projects.find(p => p.id == projectId);
+  const currentWsId = project?.workspace_id ?? null;
+
+  let workspaces = workspacesCache;
+  if (!workspaces.length) {
+    try { workspaces = await api.getWorkspaces(); workspacesCache = workspaces; }
+    catch { workspaces = []; }
+  }
+
+  const items = workspaces.map(ws => `
+    <button class="dropdown-item ${currentWsId === ws.id ? 'is-active' : ''}" data-wsid="${ws.id}">
+      ${ws.icon ? `<span class="dropdown-ws-icon">${escHtml(ws.icon)}</span>` : ws.color ? `<span class="ws-dot" style="background:${escHtml(ws.color)}"></span>` : ''}
+      ${escHtml(ws.name)}
+    </button>
+  `).join('');
+  container.innerHTML = items;
+
+  container.querySelectorAll('button[data-wsid]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const raw = btn.dataset.wsid;
+      const wsId = raw === '' ? null : parseInt(raw, 10);
+      try {
+        await api.setShareWorkspace(projectId, wsId);
+        menu.remove();
+        toast('Moved to workspace', 'success');
+        loadProjects(document.getElementById('project-search')?.value || '');
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    });
+  });
+}
+
+// ---- Share Modal ----
+export async function showShareModal(projectId) {
+  let shares = [];
+  try { shares = await api.getProjectShares(projectId); }
+  catch (err) { toast(err.message, 'error'); return; }
+
+  function modalAvatar(s) {
+    // Reuse the pc-av avatar but at a slightly larger size for the modal.
+    if (s.profilePicture) {
+      return `<div class="share-av"><img src="${escHtml(s.profilePicture)}" alt="" /></div>`;
+    }
+    const seed = s.userId || s.pendingId || (s.email ? s.email.length : 0);
+    const initial = ((s.username || s.email || '?').charAt(0) || '?').toUpperCase();
+    return `<div class="share-av" style="background:${avatarColor(seed)}">${escHtml(initial)}</div>`;
+  }
+
+  function memberRowHtml(s) {
+    if (s.pending) {
+      return `
+        <div class="share-member-row share-member-pending" data-pending-id="${s.pendingId}">
+          ${modalAvatar(s)}
+          <div class="share-member-info">
+            <div class="share-member-name">${escHtml(s.email)}</div>
+            <div class="share-member-email"><span class="share-pending-pill">Pending</span> ${escHtml(s.role)} &middot; awaiting registration</div>
+          </div>
+          <button type="button" class="btn btn-icon share-cancel-pending-btn" data-pending-id="${s.pendingId}" title="Cancel invitation">&#10005;</button>
+        </div>
+      `;
+    }
+    return `
+      <div class="share-member-row" data-uid="${s.userId}">
+        ${modalAvatar(s)}
+        <div class="share-member-info">
+          <div class="share-member-name">${escHtml(s.username || s.email)}</div>
+          ${s.username ? `<div class="share-member-email">${escHtml(s.email)}</div>` : ''}
+        </div>
+        <select class="form-control share-role-select" data-uid="${s.userId}">
+          <option value="viewer" ${s.role === 'viewer' ? 'selected' : ''}>Viewer</option>
+          <option value="editor" ${s.role === 'editor' ? 'selected' : ''}>Editor</option>
+        </select>
+        <button type="button" class="btn btn-icon share-revoke-btn" data-uid="${s.userId}" title="Revoke">&#10005;</button>
+      </div>
+    `;
+  }
+
+  function listHtml() {
+    if (!shares.length) {
+      return `<p class="text-sm text-muted" style="margin:8px 0">No one else has access to this project yet.</p>`;
+    }
+    return shares.map(memberRowHtml).join('');
+  }
+
+  showModal(`
+    <div class="share-modal">
+      <h2>Share project</h2>
+      <p class="text-sm text-muted share-modal-sub">Invite an Orbit user by email. If they don't have an account yet, they'll be sent a registration link.</p>
+
+      <form id="share-invite-form" class="share-invite-form">
+        <div class="share-invite-grid">
+          <div class="share-field share-field-email">
+            <label class="share-field-label" for="share-email">Email</label>
+            <input type="email" class="share-control" id="share-email" placeholder="user@example.com" required dir="auto" />
+          </div>
+          <div class="share-field share-field-role">
+            <label class="share-field-label" for="share-role">Role</label>
+            <select class="share-control" id="share-role">
+              <option value="viewer">Viewer</option>
+              <option value="editor">Editor</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary share-invite-btn">Invite</button>
+        </div>
+        <div id="share-err" class="share-error" style="display:none"></div>
+      </form>
+
+      <div class="share-members-section">
+        <div class="share-section-label">People with access</div>
+        <div id="share-members-list">${listHtml()}</div>
+      </div>
+
+      <div class="share-modal-footer">
+        <button type="button" class="btn btn-secondary" id="share-close">Close</button>
+      </div>
+    </div>
+  `);
+
+  document.getElementById('share-close').onclick = hideModal;
+
+  function wireRows() {
+    const list = document.getElementById('share-members-list');
+    list.querySelectorAll('.share-role-select').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        const uid = parseInt(sel.dataset.uid, 10);
+        try {
+          await api.updateProjectShare(projectId, uid, sel.value);
+          const s = shares.find(x => x.userId === uid);
+          if (s) s.role = sel.value;
+          toast('Role updated', 'success');
+        } catch (err) { toast(err.message, 'error'); }
+      });
+    });
+    list.querySelectorAll('.share-revoke-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const uid = parseInt(btn.dataset.uid, 10);
+        const s = shares.find(x => x.userId === uid && !x.pending);
+        const who = s?.username || s?.email || 'this user';
+        if (!confirm(`Revoke access for ${who}? They will keep a copy of the project, but it will no longer sync with yours.`)) return;
+        try {
+          await api.removeProjectShare(projectId, uid);
+          shares = shares.filter(x => !(x.userId === uid && !x.pending));
+          list.innerHTML = listHtml();
+          wireRows();
+          toast('Access revoked', 'success');
+        } catch (err) { toast(err.message, 'error'); }
+      });
+    });
+    list.querySelectorAll('.share-cancel-pending-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const pendingId = parseInt(btn.dataset.pendingId, 10);
+        if (!confirm('Cancel this invitation? The recipient will not be able to accept it.')) return;
+        try {
+          await api.cancelPendingInvite(projectId, pendingId);
+          shares = shares.filter(x => !(x.pending && x.pendingId === pendingId));
+          list.innerHTML = listHtml();
+          wireRows();
+          toast('Invitation cancelled', 'success');
+        } catch (err) { toast(err.message, 'error'); }
+      });
+    });
+  }
+  wireRows();
+
+  document.getElementById('share-invite-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('share-err');
+    errEl.style.display = 'none';
+    const email = document.getElementById('share-email').value.trim();
+    const role = document.getElementById('share-role').value;
+    const submitBtn = e.target.querySelector('[type=submit]');
+    submitBtn.disabled = true;
+    try {
+      const created = await api.addProjectShare(projectId, email, role);
+      // Refetch so we have the decrypted email + any pending metadata
+      shares = await api.getProjectShares(projectId);
+      document.getElementById('share-members-list').innerHTML = listHtml();
+      wireRows();
+      document.getElementById('share-email').value = '';
+      toast(created.pending ? 'Invitation email sent — awaiting registration' : 'Access granted', 'success');
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
 }
 
 export function showProjectModal(project = null, onSuccess = null) {
@@ -469,6 +719,8 @@ function riskSparklineHtml(tiers) {
 }
 
 function projectCardHtml(p, showWsBadge = false) {
+  const role = p.role || 'owner';
+  const isOwner = role === 'owner';
   const stats = p.stats || { taskTotal: 0, taskCompleted: 0, overdueCount: 0, riskOpen: 0, riskTiers: { high: 0, medium: 0, low: 0 } };
   const { taskTotal, taskCompleted, overdueCount, riskOpen, riskTiers } = stats;
   const pct = taskTotal ? Math.round((taskCompleted / taskTotal) * 100) : 0;
@@ -520,8 +772,27 @@ function projectCardHtml(p, showWsBadge = false) {
     }
   }
 
+  // Avatar stack on the cover — owner sees collaborators, recipients see owner + co-collaborators.
+  // Caller is excluded from the stack since their face isn't useful to themselves.
+  const currentUser = JSON.parse(localStorage.getItem('orbit_user') || '{}');
+  const members = (p.members || []).filter(m => m.userId !== currentUser.userId);
+  const VISIBLE = 3;
+  const visibleMembers = members.slice(0, VISIBLE);
+  const overflow = members.length - visibleMembers.length;
+  const avatarsHtml = members.length ? `
+    <div class="pc-avatars" title="${escHtml(members.map(avatarLabel).join(', '))}">
+      ${visibleMembers.map(m => avatarHtml(m)).join('')}
+      ${overflow > 0 ? `<div class="pc-av pc-av-more">+${overflow}</div>` : ''}
+    </div>
+  ` : '';
+
+  // Subtle "Shared" chip on the cover for recipients (replaces the older below-title badge).
+  const sharedChipHtml = !isOwner
+    ? `<span class="pc-chip pc-chip-shared">Shared${p.unseenShare ? ' &middot; new' : ''}</span>`
+    : '';
+
   return `
-    <div class="${cardClasses}" data-id="${p.id}">
+    <div class="${cardClasses}" data-id="${p.id}" data-role="${role}" data-unseen="${p.unseenShare ? '1' : '0'}">
       <div class="project-card-cover" ${coverBg}>
         ${p.picture ? `<img src="${escHtml(p.picture)}" alt="" />` : `
           <div class="pc-orbit" aria-hidden="true">
@@ -532,10 +803,12 @@ function projectCardHtml(p, showWsBadge = false) {
           </div>
           <div class="pc-scrim"></div>
         `}
-        <button class="favorite-star ${p.favorite ? 'active' : ''}" data-id="${p.id}" title="Favorite">&#9733;</button>
-        ${chipText ? `
+        ${isOwner ? `<button class="favorite-star ${p.favorite ? 'active' : ''}" data-id="${p.id}" title="Favorite">&#9733;</button>` : ''}
+        ${(chipText || sharedChipHtml || avatarsHtml) ? `
           <div class="pc-meta">
-            <span class="pc-chip ${chipClass}">${chipText}</span>
+            ${chipText ? `<span class="pc-chip ${chipClass}">${chipText}</span>` : ''}
+            ${sharedChipHtml}
+            ${avatarsHtml}
           </div>
         ` : ''}
       </div>
@@ -553,7 +826,7 @@ function projectCardHtml(p, showWsBadge = false) {
         ${p.tags && p.tags.length ? `<div class="project-card-tags">${tagsHtml(p.tags)}</div>` : ''}
         ${wsBadge}
       </div>
-      <button class="project-card-menu-btn" data-id="${p.id}" title="Options" aria-label="Options">&#8942;</button>
+      ${(isOwner || currentUser.workspacesEnabled) ? `<button class="project-card-menu-btn" data-id="${p.id}" data-role="${role}" title="Options" aria-label="Options">&#8942;</button>` : ''}
     </div>
   `;
 }

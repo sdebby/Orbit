@@ -2,25 +2,28 @@ const express = require('express');
 const router = express.Router();
 const db = require('../models/db');
 const { requireAuth } = require('../middleware/auth');
+const { canEditProject } = require('../utils/access');
 
 function stripHtmlTags(str) {
   if (typeof str !== 'string') return str;
   return str.replace(/<\/?[a-zA-Z][^>]*>/g, '');
 }
 
-function ownsChecklist(userId, checklistId) {
-  return db.prepare(`
-    SELECT c.* FROM task_checklists c
+// Editor access through the checklist's project (toggle/edit/delete checklist items)
+function canEditChecklist(userId, checklistId) {
+  const row = db.prepare(`
+    SELECT c.*, b.project_id AS project_id
+    FROM task_checklists c
     JOIN tasks t ON c.task_id = t.id
     JOIN buckets b ON t.bucket_id = b.id
-    JOIN projects p ON b.project_id = p.id
-    WHERE c.id = ? AND p.user_id = ?
-  `).get(checklistId, userId);
+    WHERE c.id = ?
+  `).get(checklistId);
+  return row && canEditProject(userId, row.project_id) ? row : null;
 }
 
 // PUT /api/checklists/:id
 router.put('/:id', requireAuth, (req, res) => {
-  const item = ownsChecklist(req.user.userId, req.params.id);
+  const item = canEditChecklist(req.user.userId, req.params.id);
   if (!item) return res.status(404).json({ error: 'Checklist item not found' });
   const { text, checked } = req.body;
   if (text !== undefined && (!text.trim() || text.length > 500)) {
@@ -36,7 +39,7 @@ router.put('/:id', requireAuth, (req, res) => {
 
 // DELETE /api/checklists/:id
 router.delete('/:id', requireAuth, (req, res) => {
-  const item = ownsChecklist(req.user.userId, req.params.id);
+  const item = canEditChecklist(req.user.userId, req.params.id);
   if (!item) return res.status(404).json({ error: 'Checklist item not found' });
   db.prepare('DELETE FROM task_checklists WHERE id = ?').run(item.id);
   res.json({ message: 'Checklist item deleted' });

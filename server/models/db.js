@@ -165,6 +165,36 @@ try { _db.exec('ALTER TABLE projects ADD COLUMN workspace_id INTEGER'); } catch 
 try { _db.exec('ALTER TABLE workspaces ADD COLUMN icon TEXT'); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN login_attempts INTEGER DEFAULT 0'); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN login_locked_until INTEGER'); } catch {}
+// Per-recipient workspace assignment for shared projects (the project row's workspace_id
+// belongs to the owner's view; the recipient needs their own).
+try { _db.exec('ALTER TABLE project_shares ADD COLUMN workspace_id INTEGER'); } catch {}
+
+_db.exec(`
+  CREATE TABLE IF NOT EXISTS project_shares (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role TEXT NOT NULL DEFAULT 'viewer',
+    created_at INTEGER DEFAULT (unixepoch()),
+    seen_at INTEGER,
+    UNIQUE(project_id, user_id),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS pending_shares (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    invited_email TEXT NOT NULL,
+    invited_email_hash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'viewer',
+    token_hash TEXT NOT NULL UNIQUE,
+    created_at INTEGER DEFAULT (unixepoch()),
+    expires_at INTEGER NOT NULL,
+    UNIQUE(project_id, invited_email_hash),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+  );
+`);
 
 // One-time migration: invalidate all plaintext reset/verify tokens stored before hashing was introduced.
 // Tracked via admin_settings so subsequent restarts don't null out valid sha256-hashed tokens.

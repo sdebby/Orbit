@@ -30,6 +30,16 @@
 - Solution description and photo attachments
 - Open / Resolved status
 
+### Project Sharing
+- Owner-driven invitations by email — pick **Viewer** or **Editor** role per recipient
+- Avatar stack on each shared card; "Shared" chip and role pill so collaborators always know what they can do
+- Recipient gets an email notification; unregistered emails get a 7-day invite link that doubles as a one-step register-and-accept flow
+- Pending invites are auto-promoted to real shares when the email signs up later — no second click required
+- Revoke = **fork**: the revoked user keeps an independent copy of the project (data + uploaded files), so no one loses work
+- Last-write-wins concurrent editing; no conflict resolution UI
+- **Workspaces for shared projects**: each recipient has their own per-share workspace assignment. New shares land in an auto-created "Shared Projects" workspace; recipients can move them anywhere from the project card ⋮ menu
+- Invite POST rate-limited (15 / 15 min per IP) to prevent SMTP abuse; member emails are never exposed via the projects-list API — only the owner-only share modal sees them
+
 ### Email Notifications
 - Task due-date reminder emails
 - Configurable digest emails: Off / Daily / Every 3 days / Weekly / Every 2 weeks
@@ -87,7 +97,9 @@
       login.js
       register.js
       forgot-password.js
-      projects.js   # Projects list + navbar
+      verify-email.js
+      accept-invite.js   # Pending-share invitation landing
+      projects.js   # Projects list + navbar + share modal
       board.js      # Kanban board
       profile.js
 
@@ -104,12 +116,15 @@
     tasks.js
     checklists.js
     risks.js
+    shares.js       # Project sharing + pending invites + revoke-as-fork
     profile.js
     admin.js
     feedback.js
   /utils
     hash.js                # Argon2id + SHA-512
-    email.js               # Transactional + digest emails
+    email.js               # Transactional + digest + invite emails
+    access.js              # canViewProject / canEditProject / isProjectOwner
+    pendingShares.js       # Promotes pending invites into real shares
     reminderScheduler.js   # Daily 8am cron for reminders & digests
   /uploads          # Uploaded images (gitignored)
   /data
@@ -202,6 +217,7 @@ The Express server serves the `client/` folder as static files. Open `http://loc
 | Tasks | `/api/buckets/:id/tasks` · `/api/tasks/:id` |
 | Checklists | `/api/tasks/:id/checklists` |
 | Risks | `/api/projects/:id/risks` · `/api/risks/:id` |
+| Shares | `/api/projects/:id/shares` · `/api/auth/invite/:token` · `/api/auth/register-with-invite/:token` |
 | Profile | `/api/profile` |
 | Admin | `/api/admin` |
 

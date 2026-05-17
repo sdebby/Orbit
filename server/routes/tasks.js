@@ -3,6 +3,7 @@ const router = express.Router({ mergeParams: true });
 const db = require('../models/db');
 const { requireAuth } = require('../middleware/auth');
 const { safePicturePath } = require('../utils/hash');
+const { canViewProject, canEditProject, VIEWABLE_PROJECT_IDS_SQL } = require('../utils/access');
 const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
@@ -27,9 +28,16 @@ const upload = multer({
   fileFilter: imageFilter,
 });
 
-function ownsBucket(userId, bucketId) {
-  return db.prepare('SELECT b.id FROM buckets b JOIN projects p ON b.project_id = p.id WHERE b.id = ? AND p.user_id = ?')
-    .get(bucketId, userId);
+// Editor-level access through a bucket (used for task mutations).
+function canEditBucket(userId, bucketId) {
+  const row = db.prepare('SELECT project_id FROM buckets WHERE id = ?').get(bucketId);
+  return row && canEditProject(userId, row.project_id) ? row : null;
+}
+
+// Viewer-level access through a bucket (used for task GET).
+function canViewBucket(userId, bucketId) {
+  const row = db.prepare('SELECT project_id FROM buckets WHERE id = ?').get(bucketId);
+  return row && canViewProject(userId, row.project_id) ? row : null;
 }
 
 function stripHtmlTags(str) {
@@ -52,16 +60,28 @@ function parseTags(val, fallback) {
   return arr;
 }
 
-function ownsTask(userId, taskId) {
-  return db.prepare(`
-    SELECT t.* FROM tasks t
-    JOIN buckets b ON t.bucket_id = b.id
-    JOIN projects p ON b.project_id = p.id
-    WHERE t.id = ? AND p.user_id = ?
-  `).get(taskId, userId);
+// Editor access to a task (owner or editor of its project)
+function canEditTask(userId, taskId) {
+  const row = db.prepare(`
+    SELECT t.*, b.project_id AS project_id
+    FROM tasks t JOIN buckets b ON t.bucket_id = b.id
+    WHERE t.id = ?
+  `).get(taskId);
+  return row && canEditProject(userId, row.project_id) ? row : null;
+}
+
+// Viewer access to a task (any role)
+function canViewTask(userId, taskId) {
+  const row = db.prepare(`
+    SELECT t.*, b.project_id AS project_id
+    FROM tasks t JOIN buckets b ON t.bucket_id = b.id
+    WHERE t.id = ?
+  `).get(taskId);
+  return row && canViewProject(userId, row.project_id) ? row : null;
 }
 
 // GET /api/tasks/overdue?projectId=123  (projectId optional)
+// Includes overdue tasks from shared projects as well.
 router.get('/overdue', requireAuth, (req, res) => {
   const userId = req.user.userId;
   const today = new Date().toISOString().slice(0, 10);
@@ -74,12 +94,12 @@ router.get('/overdue', requireAuth, (req, res) => {
     FROM tasks t
     JOIN buckets b ON t.bucket_id = b.id
     JOIN projects p ON b.project_id = p.id
-    WHERE p.user_id = ?
+    WHERE p.id IN (${VIEWABLE_PROJECT_IDS_SQL})
       AND t.completed_at IS NULL
       AND t.due_date IS NOT NULL
       AND t.due_date < ?
   `;
-  const params = [userId, today];
+  const params = [userId, userId, today];
   if (projectId) { sql += ' AND p.id = ?'; params.push(projectId); }
   sql += ' ORDER BY t.due_date ASC';
 
@@ -87,9 +107,9 @@ router.get('/overdue', requireAuth, (req, res) => {
   res.json(rows);
 });
 
-// GET /api/buckets/:bucketId/tasks
+// GET /api/buckets/:bucketId/tasks  — any role
 router.get('/', requireAuth, (req, res) => {
-  if (!ownsBucket(req.user.userId, req.params.bucketId)) {
+  if (!canViewBucket(req.user.userId, req.params.bucketId)) {
     return res.status(404).json({ error: 'Bucket not found' });
   }
   const tasks = db.prepare(`
@@ -101,9 +121,9 @@ router.get('/', requireAuth, (req, res) => {
   res.json(tasks.map(t => ({ ...t, tags: JSON.parse(t.tags || '[]'), picture: safePicturePath(t.picture) })));
 });
 
-// POST /api/buckets/:bucketId/tasks
+// POST /api/buckets/:bucketId/tasks  — editor and owner
 router.post('/', requireAuth, upload.single('picture'), (req, res) => {
-  if (!ownsBucket(req.user.userId, req.params.bucketId)) {
+  if (!canEditBucket(req.user.userId, req.params.bucketId)) {
     return res.status(404).json({ error: 'Bucket not found' });
   }
   const { description, priority, due_date, tags, reminder } = req.body;
@@ -130,26 +150,16 @@ router.post('/', requireAuth, upload.single('picture'), (req, res) => {
   res.status(201).json({ ...task, tags: JSON.parse(task.tags), picture: safePicturePath(task.picture) });
 });
 
-// GET /api/tasks/:id
+// GET /api/tasks/:id  — any role
 router.get('/:id', requireAuth, (req, res) => {
-  const task = db.prepare(`
-    SELECT t.* FROM tasks t
-    JOIN buckets b ON t.bucket_id = b.id
-    JOIN projects p ON b.project_id = p.id
-    WHERE t.id = ? AND p.user_id = ?
-  `).get(req.params.id, req.user.userId);
+  const task = canViewTask(req.user.userId, req.params.id);
   if (!task) return res.status(404).json({ error: 'Task not found' });
   res.json({ ...task, tags: JSON.parse(task.tags || '[]'), picture: safePicturePath(task.picture) });
 });
 
-// PUT /api/tasks/:id
+// PUT /api/tasks/:id  — editor and owner
 router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
-  const task = db.prepare(`
-    SELECT t.* FROM tasks t
-    JOIN buckets b ON t.bucket_id = b.id
-    JOIN projects p ON b.project_id = p.id
-    WHERE t.id = ? AND p.user_id = ?
-  `).get(req.params.id, req.user.userId);
+  const task = canEditTask(req.user.userId, req.params.id);
   if (!task) return res.status(404).json({ error: 'Task not found' });
 
   const { description, priority, due_date, tags, position, bucket_id, completed, reminder } = req.body;
@@ -165,7 +175,7 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
     if (!targetBucket || !currentProject || targetBucket.project_id !== currentProject.project_id) {
       return res.status(400).json({ error: 'Target bucket must be in the same project' });
     }
-    if (ownsBucket(req.user.userId, bucket_id)) targetBucketId = bucket_id;
+    if (canEditBucket(req.user.userId, bucket_id)) targetBucketId = bucket_id;
   }
 
   const tagsArr = parseTags(tags, JSON.parse(task.tags || '[]'));
@@ -193,23 +203,17 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
   res.json({ ...updated, tags: JSON.parse(updated.tags), picture: safePicturePath(updated.picture) });
 });
 
-// DELETE /api/tasks/:id
+// DELETE /api/tasks/:id  — editor and owner
 router.delete('/:id', requireAuth, (req, res) => {
-  const task = db.prepare(`
-    SELECT t.* FROM tasks t
-    JOIN buckets b ON t.bucket_id = b.id
-    JOIN projects p ON b.project_id = p.id
-    WHERE t.id = ? AND p.user_id = ?
-  `).get(req.params.id, req.user.userId);
+  const task = canEditTask(req.user.userId, req.params.id);
   if (!task) return res.status(404).json({ error: 'Task not found' });
-
   db.prepare('DELETE FROM tasks WHERE id = ?').run(task.id);
   res.json({ message: 'Task deleted' });
 });
 
-// GET /api/tasks/:id/checklists
+// GET /api/tasks/:id/checklists  — any role
 router.get('/:id/checklists', requireAuth, (req, res) => {
-  const task = ownsTask(req.user.userId, req.params.id);
+  const task = canViewTask(req.user.userId, req.params.id);
   if (!task) return res.status(404).json({ error: 'Task not found' });
   const items = db.prepare('SELECT * FROM task_checklists WHERE task_id = ? ORDER BY position ASC, created_at ASC')
     .all(req.params.id);
@@ -218,9 +222,9 @@ router.get('/:id/checklists', requireAuth, (req, res) => {
 
 const MAX_CHECKLIST_ITEMS = 100;
 
-// POST /api/tasks/:id/checklists
+// POST /api/tasks/:id/checklists  — editor and owner
 router.post('/:id/checklists', requireAuth, (req, res) => {
-  const task = ownsTask(req.user.userId, req.params.id);
+  const task = canEditTask(req.user.userId, req.params.id);
   if (!task) return res.status(404).json({ error: 'Task not found' });
   const { text } = req.body;
   if (!text || !text.trim()) return res.status(400).json({ error: 'Text is required' });

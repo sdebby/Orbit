@@ -215,4 +215,71 @@ async function sendFeedbackEmail(toEmail, { username, userEmail, message }) {
   });
 }
 
-module.exports = { sendPasswordResetEmail, sendVerificationEmail, sendTaskReminderEmail, sendUndueTasksDigestEmail, sendFeedbackEmail };
+async function sendProjectShareEmail(toEmail, { ownerName, projectTitle, role, appUrl }) {
+  const subject = `Orbit — ${ownerName} shared a project with you`;
+  const roleLabel = role === 'editor' ? 'edit' : 'view';
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+      <h2 style="color:#1a56db;border-bottom:2px solid #e5e7eb;padding-bottom:12px">Project Shared With You</h2>
+      <p><strong>${escapeHtml(ownerName)}</strong> has shared the project <strong>${escapeHtml(projectTitle)}</strong> with you.</p>
+      <p>You have permission to <strong>${roleLabel}</strong> this project.</p>
+      <p style="margin:20px 0">
+        <a href="${escapeHtml(appUrl)}/#/projects" style="background:#1a56db;color:#fff;padding:10px 18px;border-radius:4px;text-decoration:none;display:inline-block">Open Orbit</a>
+      </p>
+      <p style="color:#6b7280;font-size:12px;border-top:1px solid #e5e7eb;padding-top:12px;margin-top:24px">
+        If you weren't expecting this, you can ignore the email or ask the sender to revoke access.
+      </p>
+    </div>
+  `;
+
+  if (!transporter) {
+    console.log(`[EMAIL] No SMTP configured — share notice for ${maskEmail(toEmail)} (${projectTitle})`);
+    return;
+  }
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || 'no-reply@orbit.app',
+    to: toEmail,
+    subject,
+    html,
+  });
+}
+
+async function sendProjectShareInviteEmail(toEmail, { ownerName, projectTitle, role, inviteLink }) {
+  const subject = `Orbit — ${ownerName} invited you to a project`;
+  const roleLabel = role === 'editor' ? 'edit' : 'view';
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+      <h2 style="color:#1a56db;border-bottom:2px solid #e5e7eb;padding-bottom:12px">You're invited to Orbit</h2>
+      <p><strong>${escapeHtml(ownerName)}</strong> has invited you to collaborate on the project <strong>${escapeHtml(projectTitle)}</strong>.</p>
+      <p>You'll be able to <strong>${roleLabel}</strong> this project once you create your free Orbit account.</p>
+      <p style="margin:20px 0">
+        <a href="${escapeHtml(inviteLink)}" style="background:#1a56db;color:#fff;padding:10px 18px;border-radius:4px;text-decoration:none;display:inline-block">Accept invitation</a>
+      </p>
+      <p style="color:#6b7280;font-size:13px">This link is valid for 7 days. After you register, the shared project will be in your Projects list.</p>
+      <p style="color:#6b7280;font-size:12px;border-top:1px solid #e5e7eb;padding-top:12px;margin-top:24px">
+        If you weren't expecting this, you can ignore the email or ask the sender to cancel the invite.
+      </p>
+    </div>
+  `;
+
+  // In local dev (APP_URL=http://localhost:3000), print the invite link so the owner
+  // can copy it from the terminal without checking the inbox.
+  if ((process.env.APP_URL || 'http://localhost:3000') === 'http://localhost:3000') {
+    console.log(`[INVITE] ${maskEmail(toEmail)} → ${inviteLink}`);
+  }
+
+  if (!transporter) {
+    console.log(`[EMAIL] No SMTP configured — share invite for ${maskEmail(toEmail)} (${projectTitle})`);
+    return;
+  }
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || 'no-reply@orbit.app',
+    to: toEmail,
+    subject,
+    html,
+  });
+}
+
+module.exports = { sendPasswordResetEmail, sendVerificationEmail, sendTaskReminderEmail, sendUndueTasksDigestEmail, sendFeedbackEmail, sendProjectShareEmail, sendProjectShareInviteEmail };

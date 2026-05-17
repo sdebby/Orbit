@@ -70,6 +70,10 @@ router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) 
           .run(user.id, 'Default Workspace');
         db.prepare('UPDATE projects SET workspace_id = ? WHERE user_id = ? AND workspace_id IS NULL')
           .run(ws.lastInsertRowid, user.id);
+        // Shared projects use a per-recipient workspace_id on project_shares (not on the
+        // project row, which belongs to the owner). Drop unassigned shares into Default too.
+        db.prepare('UPDATE project_shares SET workspace_id = ? WHERE user_id = ? AND workspace_id IS NULL')
+          .run(ws.lastInsertRowid, user.id);
       }
     }
   }

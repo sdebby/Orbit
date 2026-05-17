@@ -37,6 +37,8 @@ export const api = {
   validateResetToken: (token) => request('GET', `/auth/validate-reset-token/${token}`),
   resetPassword: (token, password) => request('POST', `/auth/reset-password/${token}`, { password }),
   verifyEmail: (token) => request('POST', `/auth/verify-email/${token}`),
+  getInvite: (token) => request('GET', `/auth/invite/${token}`),
+  registerWithInvite: (token, password) => request('POST', `/auth/register-with-invite/${token}`, { password }),
 
   // Feedback
   sendFeedback: (message) => request('POST', '/feedback', { message }),
@@ -80,6 +82,16 @@ export const api = {
   updateProject: (id, formData) => request('PUT', `/projects/${id}`, null, formData),
   toggleFavorite: (id) => request('PUT', `/projects/${id}/favorite`),
   deleteProject: (id) => request('DELETE', `/projects/${id}`),
+
+  // Project sharing
+  getProjectShares: (projectId) => request('GET', `/projects/${projectId}/shares`),
+  addProjectShare: (projectId, email, role) => request('POST', `/projects/${projectId}/shares`, { email, role }),
+  updateProjectShare: (projectId, userId, role) => request('PUT', `/projects/${projectId}/shares/${userId}`, { role }),
+  removeProjectShare: (projectId, userId) => request('DELETE', `/projects/${projectId}/shares/${userId}`),
+  cancelPendingInvite: (projectId, pendingId) => request('DELETE', `/projects/${projectId}/shares/pending/${pendingId}`),
+  markShareSeen: (projectId) => request('PUT', `/projects/${projectId}/shares/seen`),
+  setShareWorkspace: (projectId, workspaceId) =>
+    request('PUT', `/projects/${projectId}/shares/workspace`, { workspace_id: workspaceId }),
 
   // Workspaces
   getWorkspaces: () => request('GET', '/workspaces'),

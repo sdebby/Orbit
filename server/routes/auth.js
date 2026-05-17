@@ -6,6 +6,7 @@ const { sha256, sha512, hashPassword, verifyPassword, encryptEmail, decryptEmail
 const { requireAuth, signToken, getAdminEmailHash } = require('../middleware/auth');
 const { sendPasswordResetEmail, sendVerificationEmail } = require('../utils/email');
 const { createSampleProject } = require('../utils/sampleProject');
+const { promotePendingShares } = require('../utils/pendingShares');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const HEX_TOKEN_RE = /^[0-9a-f]{64}$/; // 32 bytes = 64 hex chars
@@ -108,6 +109,9 @@ router.post('/login', async (req, res) => {
 
   // Successful login — clear lockout state
   db.prepare('UPDATE users SET login_attempts = 0, login_locked_until = NULL WHERE id = ?').run(user.id);
+
+  // Promote any pending project share invitations addressed to this email
+  try { promotePendingShares(user.id, user.email_hash); } catch (e) { console.error('[login] promote pending shares:', e.message); }
 
   const adminHash = getAdminEmailHash();
   const isAdmin = adminHash ? user.email_hash === adminHash : false;
@@ -213,6 +217,9 @@ router.get('/me', requireAuth, (req, res) => {
   const user = db.prepare('SELECT id, email, email_hash, username, profile_picture, created_at, token_version, reminder_interval, workspaces_enabled, theme FROM users WHERE id = ?').get(req.user.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
+  // Promote any pending invites that match this account (handles invites sent after sign-up)
+  try { promotePendingShares(user.id, user.email_hash); } catch { /* best-effort */ }
+
   const isAdmin = process.env.SUPER_ADMIN_EMAIL
     ? user.email_hash === sha512(process.env.SUPER_ADMIN_EMAIL.toLowerCase().trim())
     : false;
@@ -226,6 +233,101 @@ router.get('/me', requireAuth, (req, res) => {
     secure: process.env.NODE_ENV === 'production',
   });
   res.json({ userId: user.id, email: decryptEmail(user.email), username: user.username, profilePicture: user.profile_picture, createdAt: user.created_at, isAdmin, reminderInterval: user.reminder_interval || 0, workspacesEnabled: user.workspaces_enabled || 0, theme: user.theme || 'light' });
+});
+
+// GET /api/auth/invite/:token  — public; describe the pending invite
+router.get('/invite/:token', (req, res) => {
+  const { token } = req.params;
+  if (!HEX_TOKEN_RE.test(token)) return res.status(400).json({ error: 'Invalid invitation link' });
+  const tokenHash = sha256(token);
+  const invite = db.prepare(`
+    SELECT p.id AS pending_id, p.project_id, p.invited_email, p.invited_email_hash, p.role, p.expires_at,
+           pr.title AS project_title,
+           u.email AS owner_email, u.username AS owner_username
+    FROM pending_shares p
+    JOIN projects pr ON p.project_id = pr.id
+    JOIN users u ON pr.user_id = u.id
+    WHERE p.token_hash = ?
+  `).get(tokenHash);
+  if (!invite) return res.status(404).json({ error: 'This invitation is no longer valid' });
+  if (invite.expires_at < Date.now()) {
+    db.prepare('DELETE FROM pending_shares WHERE id = ?').run(invite.pending_id);
+    return res.status(400).json({ error: 'This invitation has expired' });
+  }
+
+  const email = decryptEmail(invite.invited_email);
+  const existingUser = db.prepare('SELECT id FROM users WHERE email_hash = ?').get(invite.invited_email_hash);
+  res.json({
+    email,
+    projectTitle: invite.project_title,
+    role: invite.role,
+    ownerName: invite.owner_username || decryptEmail(invite.owner_email),
+    alreadyRegistered: !!existingUser,
+  });
+});
+
+// POST /api/auth/register-with-invite/:token  — accept invite by registering a new account.
+// The invite link in the email proved ownership of the address, so the new account is
+// marked email_verified=1 immediately.
+router.post('/register-with-invite/:token', async (req, res) => {
+  const { token } = req.params;
+  if (!HEX_TOKEN_RE.test(token)) return res.status(400).json({ error: 'Invalid invitation link' });
+  const { password } = req.body;
+  const pwErr = validatePassword(password);
+  if (pwErr) return res.status(400).json({ error: pwErr });
+
+  const tokenHash = sha256(token);
+  const invite = db.prepare(
+    'SELECT id, project_id, invited_email, invited_email_hash, role, expires_at FROM pending_shares WHERE token_hash = ?'
+  ).get(tokenHash);
+  if (!invite) return res.status(404).json({ error: 'This invitation is no longer valid' });
+  if (invite.expires_at < Date.now()) {
+    db.prepare('DELETE FROM pending_shares WHERE id = ?').run(invite.id);
+    return res.status(400).json({ error: 'This invitation has expired' });
+  }
+
+  const emailNorm = decryptEmail(invite.invited_email);
+
+  // Account may already exist (e.g. user registered normally between invite send and click).
+  // In that case, promote the invite and ask them to sign in.
+  const existing = db.prepare('SELECT id FROM users WHERE email_hash = ?').get(invite.invited_email_hash);
+  if (existing) {
+    promotePendingShares(existing.id, invite.invited_email_hash);
+    return res.status(409).json({ error: 'You already have an Orbit account. Please sign in.', alreadyRegistered: true });
+  }
+
+  const passwordHash = await hashPassword(password);
+  const encEmail = encryptEmail(emailNorm);
+  const result = db.prepare(
+    'INSERT INTO users (email, email_hash, password_hash, email_verified) VALUES (?, ?, ?, 1)'
+  ).run(encEmail, invite.invited_email_hash, passwordHash);
+  const newUserId = result.lastInsertRowid;
+
+  try { createSampleProject(newUserId); } catch (e) { console.error('Sample project creation failed:', e.message); }
+
+  // Promote ALL pending invites for this email (this one + any others)
+  promotePendingShares(newUserId, invite.invited_email_hash);
+
+  // Issue cookie, log them in directly
+  const token2 = signToken(newUserId, 0);
+  res.cookie('orbit_token', token2, {
+    httpOnly: true,
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    secure: process.env.NODE_ENV === 'production',
+  });
+
+  const adminHash = getAdminEmailHash();
+  const isAdmin = adminHash ? invite.invited_email_hash === adminHash : false;
+  res.status(201).json({
+    userId: newUserId,
+    email: emailNorm,
+    username: null,
+    profilePicture: null,
+    isAdmin,
+    workspacesEnabled: 0,
+    theme: 'light',
+  });
 });
 
 module.exports = router;

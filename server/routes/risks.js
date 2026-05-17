@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const db = require('../models/db');
 const { requireAuth } = require('../middleware/auth');
+const { canViewProject, canEditProject } = require('../utils/access');
 const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
@@ -28,16 +29,16 @@ const upload = multer({
 
 const MAX_RISK_PHOTOS = 10;
 
-function ownsProject(userId, projectId) {
-  return db.prepare('SELECT id FROM projects WHERE id = ? AND user_id = ?').get(projectId, userId);
+// Editor-level: owner or editor of the risk's project
+function canEditRisk(userId, riskId) {
+  const row = db.prepare('SELECT * FROM risks WHERE id = ?').get(riskId);
+  return row && canEditProject(userId, row.project_id) ? row : null;
 }
 
-function ownsRisk(userId, riskId) {
-  return db.prepare(`
-    SELECT r.* FROM risks r
-    JOIN projects p ON r.project_id = p.id
-    WHERE r.id = ? AND p.user_id = ?
-  `).get(riskId, userId);
+// Viewer-level: any project role
+function canViewRisk(userId, riskId) {
+  const row = db.prepare('SELECT * FROM risks WHERE id = ?').get(riskId);
+  return row && canViewProject(userId, row.project_id) ? row : null;
 }
 
 function stripHtmlTags(str) {
@@ -74,9 +75,9 @@ function serializeRisk(r) {
   };
 }
 
-// GET /api/projects/:projectId/risks
+// GET /api/projects/:projectId/risks  — any role
 router.get('/', requireAuth, (req, res) => {
-  if (!ownsProject(req.user.userId, req.params.projectId)) {
+  if (!canViewProject(req.user.userId, req.params.projectId)) {
     return res.status(404).json({ error: 'Project not found' });
   }
   const risks = db.prepare('SELECT * FROM risks WHERE project_id = ? ORDER BY position ASC, created_at ASC')
@@ -84,9 +85,9 @@ router.get('/', requireAuth, (req, res) => {
   res.json(risks.map(serializeRisk));
 });
 
-// POST /api/projects/:projectId/risks
+// POST /api/projects/:projectId/risks  — editor and owner
 router.post('/', requireAuth, upload.single('photo'), (req, res) => {
-  if (!ownsProject(req.user.userId, req.params.projectId)) {
+  if (!canEditProject(req.user.userId, req.params.projectId)) {
     return res.status(404).json({ error: 'Project not found' });
   }
 
@@ -117,16 +118,16 @@ router.post('/', requireAuth, upload.single('photo'), (req, res) => {
   res.status(201).json(serializeRisk(risk));
 });
 
-// GET /api/risks/:id
+// GET /api/risks/:id  — any role
 router.get('/:id', requireAuth, (req, res) => {
-  const risk = ownsRisk(req.user.userId, req.params.id);
+  const risk = canViewRisk(req.user.userId, req.params.id);
   if (!risk) return res.status(404).json({ error: 'Risk not found' });
   res.json(serializeRisk(risk));
 });
 
-// PUT /api/risks/:id
+// PUT /api/risks/:id  — editor and owner
 router.put('/:id', requireAuth, upload.single('photo'), (req, res) => {
-  const risk = ownsRisk(req.user.userId, req.params.id);
+  const risk = canEditRisk(req.user.userId, req.params.id);
   if (!risk) return res.status(404).json({ error: 'Risk not found' });
 
   const { description, severity, probability, detectability, solution_description, status, tags, position } = req.body;
@@ -159,9 +160,9 @@ router.put('/:id', requireAuth, upload.single('photo'), (req, res) => {
   res.json(serializeRisk(updated));
 });
 
-// DELETE /api/risks/:id
+// DELETE /api/risks/:id  — editor and owner
 router.delete('/:id', requireAuth, (req, res) => {
-  const risk = ownsRisk(req.user.userId, req.params.id);
+  const risk = canEditRisk(req.user.userId, req.params.id);
   if (!risk) return res.status(404).json({ error: 'Risk not found' });
   db.prepare('DELETE FROM risks WHERE id = ?').run(risk.id);
   res.json({ message: 'Risk deleted' });

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const db = require('../models/db');
 const { requireAuth } = require('../middleware/auth');
+const { canViewProject, canEditProject } = require('../utils/access');
 
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 function validColor(c) {
@@ -13,13 +14,9 @@ function stripHtmlTags(str) {
   return str.replace(/<\/?[a-zA-Z][^>]*>/g, '');
 }
 
-function ownsProject(userId, projectId) {
-  return db.prepare('SELECT id FROM projects WHERE id = ? AND user_id = ?').get(projectId, userId);
-}
-
-// GET /api/projects/:projectId/buckets
+// GET /api/projects/:projectId/buckets  — viewers and editors and owner
 router.get('/', requireAuth, (req, res) => {
-  if (!ownsProject(req.user.userId, req.params.projectId)) {
+  if (!canViewProject(req.user.userId, req.params.projectId)) {
     return res.status(404).json({ error: 'Project not found' });
   }
   const buckets = db.prepare('SELECT * FROM buckets WHERE project_id = ? ORDER BY position ASC, created_at ASC')
@@ -27,9 +24,9 @@ router.get('/', requireAuth, (req, res) => {
   res.json(buckets);
 });
 
-// POST /api/projects/:projectId/buckets
+// POST /api/projects/:projectId/buckets  — editors and owner
 router.post('/', requireAuth, (req, res) => {
-  if (!ownsProject(req.user.userId, req.params.projectId)) {
+  if (!canEditProject(req.user.userId, req.params.projectId)) {
     return res.status(404).json({ error: 'Project not found' });
   }
   const { title, description, storyboard, color } = req.body;
@@ -50,11 +47,12 @@ router.post('/', requireAuth, (req, res) => {
   res.status(201).json(bucket);
 });
 
-// PUT /api/buckets/:id
+// PUT /api/buckets/:id  — editors and owner
 router.put('/:id', requireAuth, (req, res) => {
-  const bucket = db.prepare('SELECT b.* FROM buckets b JOIN projects p ON b.project_id = p.id WHERE b.id = ? AND p.user_id = ?')
-    .get(req.params.id, req.user.userId);
-  if (!bucket) return res.status(404).json({ error: 'Bucket not found' });
+  const bucket = db.prepare('SELECT * FROM buckets WHERE id = ?').get(req.params.id);
+  if (!bucket || !canEditProject(req.user.userId, bucket.project_id)) {
+    return res.status(404).json({ error: 'Bucket not found' });
+  }
 
   const { title, description, storyboard, color, position } = req.body;
   if (title !== undefined && title.length > 100) return res.status(400).json({ error: 'Title must be 100 characters or fewer' });
@@ -68,12 +66,12 @@ router.put('/:id', requireAuth, (req, res) => {
   res.json(updated);
 });
 
-// DELETE /api/buckets/:id
+// DELETE /api/buckets/:id  — editors and owner
 router.delete('/:id', requireAuth, (req, res) => {
-  const bucket = db.prepare('SELECT b.* FROM buckets b JOIN projects p ON b.project_id = p.id WHERE b.id = ? AND p.user_id = ?')
-    .get(req.params.id, req.user.userId);
-  if (!bucket) return res.status(404).json({ error: 'Bucket not found' });
-
+  const bucket = db.prepare('SELECT * FROM buckets WHERE id = ?').get(req.params.id);
+  if (!bucket || !canEditProject(req.user.userId, bucket.project_id)) {
+    return res.status(404).json({ error: 'Bucket not found' });
+  }
   db.prepare('DELETE FROM buckets WHERE id = ?').run(bucket.id);
   res.json({ message: 'Bucket deleted' });
 });

@@ -89,13 +89,28 @@ export async function renderBoard(app, params) {
 
   let project, buckets, itemsByBucket = {}, projectRisks = [];
   let searchQ = '';
+  // Role-based gating. `role` is set on the project payload (owner | editor | viewer).
+  // Viewers see a read-only board; editors get full CRUD on contents but not project meta.
+  let readOnly = false;
 
   async function loadAll() {
     try {
       [project, buckets] = await Promise.all([api.getProject(projectId), api.getBuckets(projectId)]);
+      readOnly = project.role === 'viewer';
       document.getElementById('board-title').textContent = project.title;
       const descEl = document.getElementById('board-project-desc');
       if (descEl) descEl.textContent = project.description || '';
+
+      // Add role pill on the board header so users know what they can do
+      const headerEl = document.querySelector('.board-header');
+      headerEl?.querySelector('.board-role-pill')?.remove();
+      if (project.role && project.role !== 'owner') {
+        const pill = document.createElement('span');
+        pill.className = `board-role-pill board-role-${project.role}`;
+        pill.textContent = project.role === 'viewer' ? 'View only' : 'Editor';
+        const titleEl = document.getElementById('board-title');
+        titleEl?.insertAdjacentElement('afterend', pill);
+      }
 
       // Apply project picture as a banner on the board header only
       // Only allow /uploads/ paths to prevent CSS injection
@@ -170,23 +185,28 @@ export async function renderBoard(app, params) {
       visibleBuckets.forEach(bucket => scroll.appendChild(createBucketCol(bucket)));
     }
 
-    // Add Bucket + Add template bucket — stacked in one column
-    const addBucketCol = document.createElement('div');
-    addBucketCol.className = 'add-col';
-    const addBucketBtn = document.createElement('button');
-    addBucketBtn.className = 'add-col-btn';
-    addBucketBtn.textContent = '+ Add Bucket';
-    addBucketBtn.onclick = () => showBucketModal();
-    const tmplBtn = document.createElement('button');
-    tmplBtn.className = 'add-col-btn add-col-btn--template';
-    tmplBtn.textContent = '+ Add template bucket';
-    tmplBtn.onclick = () => showTemplatePicker(tmplBtn);
-    addBucketCol.appendChild(addBucketBtn);
-    addBucketCol.appendChild(tmplBtn);
-    scroll.appendChild(addBucketCol);
+    // Add Bucket + Add template bucket — stacked in one column.
+    // Hidden for viewers (read-only access).
+    if (!readOnly) {
+      const addBucketCol = document.createElement('div');
+      addBucketCol.className = 'add-col';
+      const addBucketBtn = document.createElement('button');
+      addBucketBtn.className = 'add-col-btn';
+      addBucketBtn.textContent = '+ Add Bucket';
+      addBucketBtn.onclick = () => showBucketModal();
+      const tmplBtn = document.createElement('button');
+      tmplBtn.className = 'add-col-btn add-col-btn--template';
+      tmplBtn.textContent = '+ Add template bucket';
+      tmplBtn.onclick = () => showTemplatePicker(tmplBtn);
+      addBucketCol.appendChild(addBucketBtn);
+      addBucketCol.appendChild(tmplBtn);
+      scroll.appendChild(addBucketCol);
+    }
 
-    makeBoardSortable(scroll);
-    makeTasksDraggable(scroll);
+    if (!readOnly) {
+      makeBoardSortable(scroll);
+      makeTasksDraggable(scroll);
+    }
   }
 
   function makeBoardSortable(scroll) {
@@ -385,7 +405,7 @@ export async function renderBoard(app, params) {
       <div class="bucket-header">
         <span class="bucket-title" dir="auto" title="${escHtml(bucket.title)}">${escHtml(bucket.title)}</span>
         <span class="text-muted text-sm">${activeTasks.length}</span>
-        <button class="bucket-menu-btn" title="Bucket options">&#8942;</button>
+        ${readOnly ? '' : `<button class="bucket-menu-btn" title="Bucket options">&#8942;</button>`}
       </div>
 
       <div class="bucket-storyboard">
@@ -405,7 +425,7 @@ export async function renderBoard(app, params) {
             </div>
           </details>
         ` : ''}
-        <button class="bucket-add-btn add-task" data-bucket="${bucket.id}">+ Task</button>
+        ${readOnly ? '' : `<button class="bucket-add-btn add-task" data-bucket="${bucket.id}">+ Task</button>`}
       </div>
     `;
 
@@ -415,7 +435,9 @@ export async function renderBoard(app, params) {
       header.style.background = bucket.color;
       header.style.borderRadius = 'var(--radius) var(--radius) 0 0';
       header.querySelector('.bucket-title').style.color = '#2a2a2a';
-      header.querySelector('.bucket-menu-btn').style.color = 'rgba(0,0,0,0.55)';
+      // .bucket-menu-btn is omitted for viewers — guard the lookup
+      const menuBtnEl = header.querySelector('.bucket-menu-btn');
+      if (menuBtnEl) menuBtnEl.style.color = 'rgba(0,0,0,0.55)';
       col.querySelector('.text-muted').style.color = 'rgba(0,0,0,0.45)';
     }
 
@@ -425,27 +447,36 @@ export async function renderBoard(app, params) {
       showStoryboardModal(bucket);
     };
 
-    // Bucket menu
-    col.querySelector('.bucket-menu-btn').onclick = (e) => {
-      e.stopPropagation();
-      showBucketMenu(e.currentTarget, bucket);
-    };
-
-    // Bucket title click to edit
-    col.querySelector('.bucket-title').onclick = () => showBucketModal(bucket);
-
-    // Task cards (active + done)
-    col.querySelectorAll('.task-card').forEach(card => {
-      card.onclick = async () => {
-        const cached = tasks.find(t => t.id == card.dataset.id);
-        if (!cached || cached.completed_at) return;
-        try {
-          const freshTask = await api.getTask(card.dataset.id);
-          if (!freshTask.completed_at) showTaskModal(bucket.id, freshTask);
-        } catch {
-          showTaskModal(bucket.id, cached);
-        }
+    // Bucket menu (omitted for viewers)
+    const menuBtn = col.querySelector('.bucket-menu-btn');
+    if (menuBtn) {
+      menuBtn.onclick = (e) => {
+        e.stopPropagation();
+        showBucketMenu(e.currentTarget, bucket);
       };
+    }
+
+    // Bucket title click to edit — viewers can't edit
+    if (!readOnly) {
+      col.querySelector('.bucket-title').onclick = () => showBucketModal(bucket);
+    }
+
+    // Task cards (active + done). Viewers can see the card but not open the edit modal.
+    col.querySelectorAll('.task-card').forEach(card => {
+      if (readOnly) {
+        card.style.cursor = 'default';
+      } else {
+        card.onclick = async () => {
+          const cached = tasks.find(t => t.id == card.dataset.id);
+          if (!cached || cached.completed_at) return;
+          try {
+            const freshTask = await api.getTask(card.dataset.id);
+            if (!freshTask.completed_at) showTaskModal(bucket.id, freshTask);
+          } catch {
+            showTaskModal(bucket.id, cached);
+          }
+        };
+      }
       card.querySelector('.card-edit-btn')?.addEventListener('click', async (e) => {
         e.stopPropagation();
         try {
@@ -501,7 +532,8 @@ export async function renderBoard(app, params) {
       if (task && task.checklistItems) mountCardChecklists(card, task);
     });
 
-    col.querySelector('.add-task').onclick = () => showTaskModal(bucket.id);
+    const addTaskBtn = col.querySelector('.add-task');
+    if (addTaskBtn) addTaskBtn.onclick = () => showTaskModal(bucket.id);
 
     return col;
   }
@@ -548,10 +580,14 @@ export async function renderBoard(app, params) {
     function makeRow(item) {
       const row = document.createElement('div');
       row.className = `card-cl-item${item.checked ? ' done' : ''}`;
+      const checkEl = readOnly
+        ? `<span class="card-cl-check-btn read-only${item.checked ? ' checked' : ''}" aria-hidden="true" style="pointer-events:none;cursor:default">${item.checked ? '&#10003;' : ''}</span>`
+        : `<button class="card-cl-check-btn${item.checked ? ' checked' : ''}" title="${item.checked ? 'Mark incomplete' : 'Mark done'}">${item.checked ? '&#10003;' : ''}</button>`;
       row.innerHTML = `
-        <button class="card-cl-check-btn${item.checked ? ' checked' : ''}" title="${item.checked ? 'Mark incomplete' : 'Mark done'}">${item.checked ? '&#10003;' : ''}</button>
+        ${checkEl}
         <span class="card-cl-text" dir="auto">${escHtml(item.text)}</span>
       `;
+      if (readOnly) return row;
       row.querySelector('.card-cl-check-btn').addEventListener('click', async (e) => {
         e.stopPropagation();
         const newChecked = !item.checked;
@@ -589,29 +625,34 @@ export async function renderBoard(app, params) {
       <div class="bucket-items" id="project-risks">
         ${bodyContent}
       </div>
-      <button class="bucket-add-btn add-risk">+ Risk</button>
+      ${readOnly ? '' : `<button class="bucket-add-btn add-risk">+ Risk</button>`}
     `;
 
     col.querySelectorAll('#project-risks .risk-card').forEach(card => {
-      card.onclick = () => {
-        const risk = projectRisks.find(r => r.id == card.dataset.id);
-        if (risk) showRiskModal(risk);
-      };
-      card.querySelector('.card-edit-btn')?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const risk = projectRisks.find(r => r.id == card.dataset.id);
-        if (risk) showRiskModal(risk);
-      });
-      card.querySelector('.card-delete-btn')?.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        if (!confirm('Delete this risk?')) return;
-        await api.deleteRisk(card.dataset.id);
-        toast('Risk deleted', 'success');
-        await loadAll();
-      });
+      if (readOnly) {
+        card.style.cursor = 'default';
+      } else {
+        card.onclick = () => {
+          const risk = projectRisks.find(r => r.id == card.dataset.id);
+          if (risk) showRiskModal(risk);
+        };
+        card.querySelector('.card-edit-btn')?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const risk = projectRisks.find(r => r.id == card.dataset.id);
+          if (risk) showRiskModal(risk);
+        });
+        card.querySelector('.card-delete-btn')?.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!confirm('Delete this risk?')) return;
+          await api.deleteRisk(card.dataset.id);
+          toast('Risk deleted', 'success');
+          await loadAll();
+        });
+      }
     });
 
-    col.querySelector('.add-risk').onclick = () => showRiskModal();
+    const addRiskBtn = col.querySelector('.add-risk');
+    if (addRiskBtn) addRiskBtn.onclick = () => showRiskModal();
     return col;
   }
 
@@ -620,18 +661,26 @@ export async function renderBoard(app, params) {
       ? formatDate(new Date(t.completed_at * 1000).toISOString().split('T')[0])
       : null;
     const ddClass = t.completed_at ? '' : dueDateClass(t.due_date);
+    const actionsHtml = readOnly ? '' : `
+      <div class="card-actions">
+        ${!t.completed_at ? `<button class="card-action-btn card-duplicate-btn" title="Duplicate">&#10697;</button>` : ''}
+        ${!t.completed_at ? `<button class="card-action-btn card-edit-btn" title="Edit">&#9998;</button>` : ''}
+        <button class="card-action-btn card-delete-btn" title="Delete">&#128465;</button>
+      </div>
+    `;
+    const checkBtnHtml = readOnly ? `
+      <span class="task-check-btn read-only ${t.completed_at ? 'checked' : ''}" aria-hidden="true" style="pointer-events:none;cursor:default">${t.completed_at ? '&#10003;' : ''}</span>
+    ` : `
+      <button class="task-check-btn ${t.completed_at ? 'checked' : ''}" title="${t.completed_at ? 'Mark as incomplete' : 'Mark as done'}">
+        ${t.completed_at ? '&#10003;' : ''}
+      </button>
+    `;
     return `
       <div class="card task-card ${t.completed_at ? 'task-done' : ''}" data-id="${t.id}">
         ${t.picture ? `<img class="card-thumb" src="${escHtml(t.picture)}" />` : ''}
-        <div class="card-actions">
-          ${!t.completed_at ? `<button class="card-action-btn card-duplicate-btn" title="Duplicate">&#10697;</button>` : ''}
-          ${!t.completed_at ? `<button class="card-action-btn card-edit-btn" title="Edit">&#9998;</button>` : ''}
-          <button class="card-action-btn card-delete-btn" title="Delete">&#128465;</button>
-        </div>
+        ${actionsHtml}
         <div class="task-body">
-          <button class="task-check-btn ${t.completed_at ? 'checked' : ''}" title="${t.completed_at ? 'Mark as incomplete' : 'Mark as done'}">
-            ${t.completed_at ? '&#10003;' : ''}
-          </button>
+          ${checkBtnHtml}
           <div class="card-description" dir="auto">${escHtml(t.description)}</div>
         </div>
         ${t.checklist_total > 0 ? `
@@ -655,10 +704,11 @@ export async function renderBoard(app, params) {
     const cls = rpnClass(r.rpn);
     return `
       <div class="card risk-card" data-id="${r.id}">
+        ${readOnly ? '' : `
         <div class="card-actions">
           <button class="card-action-btn card-edit-btn" title="Edit">&#9998;</button>
           <button class="card-action-btn card-delete-btn" title="Delete">&#128465;</button>
-        </div>
+        </div>`}
         <div class="card-type-badge risk">Risk</div>
         ${r.photos?.length ? `<img src="${escHtml(r.photos[0])}" style="width:100%;height:80px;object-fit:cover;border-radius:4px;margin-bottom:6px" />` : ''}
         <div class="card-description" dir="auto">${escHtml(r.description)}</div>
@@ -678,18 +728,21 @@ export async function renderBoard(app, params) {
       <p class="text-sm text-muted" style="margin:-8px 0 12px">${escHtml(bucket.title)}</p>
       <form id="storyboard-form">
         <div class="form-group">
-          <textarea class="form-control" id="sb-text" rows="8" placeholder="Storyboard…" dir="auto">${escHtml(bucket.storyboard || '')}</textarea>
+          <textarea class="form-control" id="sb-text" rows="8" placeholder="Storyboard…" dir="auto" ${readOnly ? 'readonly' : ''}>${escHtml(bucket.storyboard || '')}</textarea>
         </div>
         <div id="sb-err" class="text-sm" style="color:var(--red);display:none;margin-bottom:8px;"></div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button type="button" class="btn btn-secondary" id="sb-cancel">Cancel</button>
-          <span style="flex:1"></span>
-          <button type="button" class="btn btn-secondary danger" id="sb-clear">Clear Storyboard</button>
-          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" class="btn btn-secondary" id="sb-cancel">${readOnly ? 'Close' : 'Cancel'}</button>
+          ${readOnly ? '' : `
+            <span style="flex:1"></span>
+            <button type="button" class="btn btn-secondary danger" id="sb-clear">Clear Storyboard</button>
+            <button type="submit" class="btn btn-primary">Save</button>
+          `}
         </div>
       </form>
     `);
     document.getElementById('sb-cancel').onclick = hideModal;
+    if (readOnly) return;
     document.getElementById('sb-clear').onclick = () => {
       document.getElementById('sb-text').value = '';
       document.getElementById('sb-text').focus();

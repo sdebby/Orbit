@@ -64,23 +64,42 @@ const { getAdminEmailHash, parseCookie } = require('./middleware/auth');
 
 const UPLOAD_FILENAME_RE = /^\/[a-zA-Z0-9][\w\-\.]*\.(jpg|jpeg|png)$/i;
 
+// SQL fragment: every project id the user can access (owned or shared)
+const ACCESSIBLE_PROJECTS_SQL = `
+  SELECT id FROM projects WHERE user_id = ?
+  UNION
+  SELECT project_id FROM project_shares WHERE user_id = ?
+`;
+
 function userOwnsUpload(userId, filepath) {
   if (db.prepare('SELECT 1 AS x FROM users WHERE id = ? AND profile_picture = ?').get(userId, filepath)) return true;
-  if (db.prepare('SELECT 1 AS x FROM projects WHERE picture = ? AND user_id = ?').get(filepath, userId)) return true;
+
+  // Profile pictures of other users are visible if they collaborate on a project with this user
+  // (e.g. avatar stack on shared project cards, share modal member rows).
+  if (db.prepare(`
+    SELECT 1 AS x FROM users u
+    WHERE u.profile_picture = ?
+      AND u.id IN (
+        SELECT p.user_id FROM projects p WHERE p.id IN (${ACCESSIBLE_PROJECTS_SQL})
+        UNION
+        SELECT s.user_id FROM project_shares s WHERE s.project_id IN (${ACCESSIBLE_PROJECTS_SQL})
+      )
+  `).get(filepath, userId, userId, userId, userId)) return true;
+
+  if (db.prepare(`SELECT 1 AS x FROM projects WHERE picture = ? AND id IN (${ACCESSIBLE_PROJECTS_SQL})`).get(filepath, userId, userId)) return true;
   if (db.prepare(`
     SELECT 1 AS x FROM tasks t
     JOIN buckets b ON t.bucket_id = b.id
-    JOIN projects p ON b.project_id = p.id
-    WHERE t.picture = ? AND p.user_id = ?
-  `).get(filepath, userId)) return true;
+    WHERE t.picture = ? AND b.project_id IN (${ACCESSIBLE_PROJECTS_SQL})
+  `).get(filepath, userId, userId)) return true;
   // Risk photos / solution_photos are stored as JSON arrays of paths.
   // The path regex permits no quotes/backslashes, so a quoted needle uniquely matches one element.
   const jsonNeedle = `%"${filepath}"%`;
   if (db.prepare(`
     SELECT 1 AS x FROM risks r
-    JOIN projects p ON r.project_id = p.id
-    WHERE p.user_id = ? AND (r.photos LIKE ? OR r.solution_photos LIKE ?)
-  `).get(userId, jsonNeedle, jsonNeedle)) return true;
+    WHERE r.project_id IN (${ACCESSIBLE_PROJECTS_SQL})
+      AND (r.photos LIKE ? OR r.solution_photos LIKE ?)
+  `).get(userId, userId, jsonNeedle, jsonNeedle)) return true;
   return false;
 }
 
@@ -158,6 +177,7 @@ app.use('/api/auth/verify-email', verifyEmailLimiter);
 app.use('/api/auth/forgot-password', forgotPasswordLimiter);
 app.use('/api/auth', authLimiter, require('./routes/auth'));
 app.use('/api/projects', require('./routes/projects'));
+app.use('/api/projects/:projectId/shares', require('./routes/shares'));
 app.use('/api/projects/:projectId/buckets', require('./routes/buckets'));
 app.use('/api/buckets/:bucketId/tasks', require('./routes/tasks'));
 app.use('/api/projects/:projectId/risks', require('./routes/risks'));

@@ -70,8 +70,12 @@ router.delete('/:id', requireAuth, (req, res) => {
   const ws = ownsWorkspace(req.user.userId, parseInt(req.params.id, 10));
   if (!ws) return res.status(404).json({ error: 'Workspace not found' });
 
-  // Move projects to unassigned before deleting
+  // Move projects to unassigned before deleting.
+  // project_shares.workspace_id is scoped to this user only — clear matches owned by us
+  // so shared projects don't dangle pointing to a deleted workspace.
   db.prepare('UPDATE projects SET workspace_id = NULL WHERE workspace_id = ?').run(ws.id);
+  db.prepare('UPDATE project_shares SET workspace_id = NULL WHERE workspace_id = ? AND user_id = ?')
+    .run(ws.id, req.user.userId);
   db.prepare('DELETE FROM workspaces WHERE id = ?').run(ws.id);
   res.json({ message: 'Workspace deleted' });
 });

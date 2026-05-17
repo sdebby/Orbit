@@ -2037,3 +2037,276 @@ body[data-theme="dark"] .admin-bulk-bar { border-color: rgba(0,82,204,0.5); }
   box-shadow: 0 0 0 2px var(--blue);
   padding: 0 2px;
 }
+
+/* ========= Project Sharing ========= */
+/* Avatar stack on project card cover — matches design system pc__avatars */
+.pc-avatars {
+  display: flex;
+}
+.pc-av {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  margin-left: -6px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--gray-500);
+}
+.pc-av:first-child { margin-left: 0; }
+.pc-av img { width: 100%; height: 100%; object-fit: cover; }
+.pc-av-more {
+  background: rgba(0, 0, 0, 0.42);
+  font-size: 9px;
+  letter-spacing: .02em;
+}
+
+/* "Shared" chip on the cover — sits in pc-meta next to status chips */
+.pc-chip-shared {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+/* Shared-project menu — header label and workspace picker */
+.dropdown-header {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text3);
+}
+.dropdown-section-label {
+  padding: 6px 12px 2px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text3);
+}
+.dropdown-ws-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+.dropdown-ws-list .dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dropdown-ws-list .dropdown-item.is-active {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--accent2);
+}
+.dropdown-ws-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.board-role-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin-left: 10px;
+}
+.board-role-pill.board-role-viewer {
+  background: var(--bg3);
+  color: var(--text2);
+  border: 1px solid var(--border);
+}
+.board-role-pill.board-role-editor {
+  background: var(--blue-bg);
+  color: var(--blue);
+  border: 1px solid var(--blue);
+}
+
+/* Share modal — layout */
+.share-modal { display: flex; flex-direction: column; min-width: 480px; }
+.share-modal h2 {
+  font-family: 'Syne', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+.share-modal-sub {
+  color: var(--text2);
+  margin: 0 0 18px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.share-invite-form { margin-bottom: 4px; }
+.share-invite-grid {
+  display: grid;
+  grid-template-columns: 1fr 120px auto;
+  gap: 8px;
+  align-items: end;
+}
+.share-field { display: flex; flex-direction: column; min-width: 0; }
+.share-field-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text3);
+  margin-bottom: 6px;
+}
+.share-control {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg2);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+.share-control:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(99, 160, 255, 0.15);
+}
+select.share-control {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 26px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M4 6l4 4 4-4' fill='none' stroke='%238a90aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+.share-invite-btn {
+  height: 36px;
+  padding: 0 16px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.share-error {
+  color: var(--red);
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.share-members-section { margin-top: 22px; }
+.share-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text3);
+  padding-bottom: 6px;
+  border-bottom: 0.5px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.share-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+/* Share modal — member rows */
+.share-member-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 0.5px solid var(--border);
+}
+.share-member-row:last-child { border-bottom: none; }
+.share-av {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--gray-500);
+}
+.share-av img { width: 100%; height: 100%; object-fit: cover; }
+.share-member-info { flex: 1; min-width: 0; }
+.share-member-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.share-member-email {
+  font-size: 11px;
+  color: var(--text3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.share-role-select {
+  width: 100px;
+  flex-shrink: 0;
+  padding: 4px 8px;
+  font-size: 12px;
+  height: 30px;
+}
+.share-revoke-btn,
+.share-cancel-pending-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text3);
+  border: 0.5px solid var(--border);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .12s ease;
+}
+.share-revoke-btn:hover,
+.share-cancel-pending-btn:hover {
+  background: var(--red-bg);
+  color: var(--red);
+  border-color: var(--red);
+}
+.share-pending-pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--orange);
+  background: var(--orange-bg);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-right: 4px;
+}
+.share-member-pending .share-member-name { color: var(--text2); }
+.share-members-section .settings-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text3);
+}
