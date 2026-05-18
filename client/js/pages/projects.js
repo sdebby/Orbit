@@ -724,7 +724,7 @@ function projectCardHtml(p, showWsBadge = false) {
   const stats = p.stats || { taskTotal: 0, taskCompleted: 0, overdueCount: 0, riskOpen: 0, riskTiers: { high: 0, medium: 0, low: 0 } };
   const { taskTotal, taskCompleted, overdueCount, riskOpen, riskTiers } = stats;
   const pct = taskTotal ? Math.round((taskCompleted / taskTotal) * 100) : 0;
-  const atRisk = overdueCount > 0 || (riskTiers.high || 0) > 0;
+  const atRisk = (riskTiers.high || 0) > 0;
   const allClear = taskTotal > 0 && riskOpen === 0 && overdueCount === 0;
   const complete = taskTotal > 0 && taskCompleted === taskTotal;
   let chipText = '';

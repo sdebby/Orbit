@@ -69,6 +69,7 @@ async function sendDailyReminders() {
         WHERE p.user_id = ?
           AND t.completed_at IS NULL
           AND t.due_date IS NOT NULL
+          AND t.due_date != ''
         ORDER BY t.due_date ASC
       `).all(user.id);
 

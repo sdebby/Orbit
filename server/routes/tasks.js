@@ -97,6 +97,7 @@ router.get('/overdue', requireAuth, (req, res) => {
     WHERE p.id IN (${VIEWABLE_PROJECT_IDS_SQL})
       AND t.completed_at IS NULL
       AND t.due_date IS NOT NULL
+      AND t.due_date != ''
       AND t.due_date < ?
   `;
   const params = [userId, userId, today];
@@ -196,8 +197,10 @@ router.put('/:id', requireAuth, upload.single('picture'), (req, res) => {
     reminderVal = (reminder === 'true' || reminder === true || reminder === '1' || reminder === 1) ? 1 : 0;
   }
 
+  const newDueDate = due_date === undefined ? task.due_date : (due_date || null);
+
   db.prepare('UPDATE tasks SET bucket_id = ?, description = ?, priority = ?, due_date = ?, tags = ?, position = ?, picture = ?, completed_at = ?, reminder = ? WHERE id = ?')
-    .run(targetBucketId, stripHtmlTags(description || task.description), p, due_date ?? task.due_date, JSON.stringify(tagsArr.map(stripHtmlTags)), position ?? task.position, picture, completedAt, reminderVal, task.id);
+    .run(targetBucketId, stripHtmlTags(description || task.description), p, newDueDate, JSON.stringify(tagsArr.map(stripHtmlTags)), position ?? task.position, picture, completedAt, reminderVal, task.id);
 
   const updated = db.prepare('SELECT * FROM tasks WHERE id = ?').get(task.id);
   res.json({ ...updated, tags: JSON.parse(updated.tags), picture: safePicturePath(updated.picture) });

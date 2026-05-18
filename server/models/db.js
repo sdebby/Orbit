@@ -133,6 +133,8 @@ try { _db.exec('ALTER TABLE buckets ADD COLUMN storyboard TEXT'); } catch {}
 try { _db.exec("UPDATE buckets SET storyboard = description WHERE storyboard IS NULL AND description IS NOT NULL AND description != ''"); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN username TEXT'); } catch {}
 try { _db.exec('ALTER TABLE tasks ADD COLUMN completed_at INTEGER'); } catch {}
+// Normalize legacy empty-string due_date values to NULL (caused false "overdue" matches)
+try { _db.exec("UPDATE tasks SET due_date = NULL WHERE due_date = ''"); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0'); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN verify_token TEXT'); } catch {}
 try { _db.exec('ALTER TABLE users ADD COLUMN verify_token_expires INTEGER'); } catch {}

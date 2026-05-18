@@ -168,7 +168,7 @@ router.get('/', requireAuth, (req, res) => {
       SELECT b.project_id AS project_id,
              COUNT(t.id) AS task_total,
              SUM(CASE WHEN t.completed_at IS NOT NULL THEN 1 ELSE 0 END) AS task_completed,
-             SUM(CASE WHEN t.completed_at IS NULL AND t.due_date IS NOT NULL AND t.due_date < ? THEN 1 ELSE 0 END) AS overdue_count
+             SUM(CASE WHEN t.completed_at IS NULL AND t.due_date IS NOT NULL AND t.due_date != '' AND t.due_date < ? THEN 1 ELSE 0 END) AS overdue_count
       FROM buckets b
       LEFT JOIN tasks t ON t.bucket_id = b.id
       WHERE b.project_id IN (${placeholders})
