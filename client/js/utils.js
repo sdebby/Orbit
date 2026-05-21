@@ -1,3 +1,7 @@
+// True on touch-primary devices (phones/tablets). Used to disable HTML5 drag-and-drop,
+// which never fires from touch input.
+export const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+
 export function toast(msg, type = 'info') {
   const el = document.createElement('div');
   el.className = `toast ${type}`;

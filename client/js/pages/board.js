@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { toast, showModal, hideModal, tagsInput, tagsHtml, escHtml, formatDate, isOverdue, dueDateClass, rpnClass } from '../utils.js';
+import { toast, showModal, hideModal, tagsInput, tagsHtml, escHtml, formatDate, isOverdue, dueDateClass, rpnClass, isTouchDevice } from '../utils.js';
 import { navigate } from '../router.js';
 import { navbarHtml, setupNavbar, showProjectModal, breadcrumbHtml } from './projects.js';
 
@@ -76,7 +76,7 @@ export async function renderBoard(app, params) {
           <h2 id="board-title">Loading…</h2>
           <span id="board-project-desc" class="board-project-desc"></span>
           <span class="navbar-spacer"></span>
-          <input type="search" class="form-control" id="board-search" placeholder="Search tasks, tags &amp; risks…" style="max-width:220px" />
+          <input type="search" class="form-control board-search" id="board-search" placeholder="Search tasks, tags &amp; risks…" />
         </div>
         <div class="board-scroll" id="board-scroll">
           <div class="spinner-wrap" style="height:300px;flex:1"><div class="spinner"></div></div>
@@ -210,6 +210,7 @@ export async function renderBoard(app, params) {
   }
 
   function makeBoardSortable(scroll) {
+    if (isTouchDevice) return;  // HTML5 drag-and-drop doesn't fire from touch input
     let dragSrc = null;
 
     scroll.querySelectorAll('.bucket-col').forEach(col => {
@@ -251,6 +252,7 @@ export async function renderBoard(app, params) {
   }
 
   function makeTasksDraggable(scroll) {
+    if (isTouchDevice) return;  // HTML5 drag-and-drop doesn't fire from touch input
     let dragCard = null;
     let dragBucketId = null;
 

@@ -796,9 +796,16 @@ body[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator { 
   }
 }
 @media (max-width: 520px) {
-  .projects-grid {
+  /* Phone: one column, 3 cards per viewport, then scroll. Also overrides the
+     .single-row sizing (applied at <=4 projects) since on a phone the grid is
+     always one column. minmax() lets a card grow past a third of the screen
+     if its content needs the room (never clipped).
+     76px = 2 row-gaps (18px) + grid padding top+bottom (20px). */
+  .projects-grid,
+  .projects-grid.single-row {
     grid-template-columns: 1fr;
-    grid-auto-rows: auto;
+    grid-auto-rows: minmax(calc((100% - 76px) / 3), auto);
+    align-content: start;
   }
 }
 .project-card {
@@ -2324,4 +2331,94 @@ select.share-control {
   text-transform: uppercase;
   letter-spacing: .06em;
   color: var(--text3);
+}
+
+/* ========================================================================
+   Responsive / Mobile
+   ======================================================================== */
+
+/* Board search — moved off an inline style so the mobile query below can
+   override it (a media query can't beat an inline style= without !important). */
+.board-search { max-width: 220px; }
+
+/* Notification panel — tap-to-open on touch. setupNavbar() toggles .notif-open
+   since the CSS-only hover reveal never fires without a pointer. */
+.notif-wrapper.notif-open .notif-panel {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0s;
+}
+
+/* ---- Phones & small tablets ---- */
+@media (max-width: 768px) {
+  /* Navbar */
+  .navbar { padding: 0 12px; }
+  .notif-panel { width: min(300px, calc(100vw - 24px)); }
+
+  /* Board: stack buckets vertically; the page scrolls, not each column */
+  .board-scroll {
+    flex-direction: column;
+    align-items: stretch;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .bucket-col,
+  .add-col {
+    width: 100%;
+    max-height: none;
+  }
+  .bucket-items { overflow-y: visible; }
+
+  /* Board header: let the search field drop to its own full-width line */
+  .board-header { flex-wrap: wrap; }
+  .board-header h2 { white-space: normal; }
+  .board-search {
+    flex-basis: 100%;
+    width: 100%;
+    max-width: none;
+  }
+
+  /* Modals: edge gutter + tighter padding */
+  .modal-overlay { padding: 12px; }
+  .modal {
+    padding: 20px;
+    max-height: 94vh;
+  }
+
+  /* Bucket color swatches: reflow instead of a fixed 10-wide grid */
+  .color-swatches {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  /* Share modal: drop the 480px floor; stack the invite row */
+  .share-modal { min-width: 0; }
+  .share-invite-grid { grid-template-columns: 1fr; }
+
+  /* Profile */
+  .profile-page { padding: 24px 14px; }
+  .settings-row { flex-wrap: wrap; }
+
+  /* Larger touch targets for the smallest controls */
+  .card-action-btn { width: 30px; height: 30px; }
+  .bucket-menu-btn { width: 32px; height: 32px; }
+  .project-card-menu-btn { width: 32px; height: 32px; }
+}
+
+/* ---- Smallest phones: typography & spacing ---- */
+@media (max-width: 480px) {
+  .modal { padding: 16px; }
+  .board-header { padding: 10px 12px; }
+  .board-header h2 { font-size: 16px; }
+  .board-project-desc { display: none; }
+  .profile-page { padding: 20px 10px; }
+}
+
+/* ---- Touch / no-hover devices: reveal hover-only affordances ----
+   These controls stay hidden until :hover on desktop; a touch device has no
+   hover state, so show them permanently. */
+@media (hover: none) {
+  .card-actions { display: flex; }
+  .project-card-menu-btn { opacity: 1; }
+  .ws-tab-menu-btn { opacity: 0.7; }
 }

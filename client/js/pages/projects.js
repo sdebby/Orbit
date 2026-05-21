@@ -946,6 +946,29 @@ export function setupNavbar({ projectId } = {}) {
   }
 
   loadNotifications();
+
+  // Tap-to-toggle the notification panel — the CSS-only hover reveal never fires on touch.
+  const notifBell = document.getElementById('nav-notifications');
+  const notifWrapper = document.getElementById('notif-wrapper');
+  if (notifBell && notifWrapper) {
+    notifBell.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = notifWrapper.classList.toggle('notif-open');
+      if (open) {
+        const panel = document.getElementById('notif-panel');
+        if (panel) panel.hidden = false;
+      }
+    });
+    const closeNotif = () => {
+      if (!document.body.contains(notifWrapper)) {
+        document.removeEventListener('click', closeNotif);
+        return;
+      }
+      notifWrapper.classList.remove('notif-open');
+    };
+    document.addEventListener('click', closeNotif);
+  }
+
   document.getElementById('nav-profile')?.addEventListener('click', () => {
     if (dropdown) dropdown.hidden = true;
     navigate('/profile');
