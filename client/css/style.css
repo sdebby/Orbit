@@ -1685,6 +1685,21 @@ details.done-tasks-section[open] > .done-tasks-toggle::before {
 }
 .card-action-btn:hover { background: var(--gray-300); color: var(--gray-900); }
 
+/* Touch-only single ⋮ menu on task cards (replaces the 3-button cluster on phones,
+   so the buttons don't overlap RTL text that starts at the right edge of the card). */
+.card-actions-touch { display: flex; }
+.card-menu-btn {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  width: 32px; height: 32px;
+  font-size: 18px; line-height: 1;
+  color: var(--gray-600);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.card-menu-btn:hover { background: var(--gray-200); color: var(--gray-900); }
+
 /* Dropdown menu */
 .dropdown {
   position: absolute;
@@ -2385,6 +2400,22 @@ select.share-control {
     max-height: 94vh;
   }
 
+  /* Wrap the 3-up Priority/Due-Date/Reminder row so columns don't visually overlap on
+     phones. Priority + Due Date share the line 50/50; Reminder drops to its own full
+     line below. min-width:0 stops the iOS native date input's intrinsic width from
+     pushing its column wider than its flex basis. align-items:flex-start keeps labels
+     baselined at the top so the "DUE DATE" label doesn't float above the row. */
+  .form-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    row-gap: 12px;
+  }
+  .form-row .form-group { flex: 1 1 calc(50% - 6px); min-width: 0; }
+  .form-row .form-group--reminder {
+    flex: 1 1 100%;
+    padding-bottom: 0;
+  }
+
   /* Bucket color swatches: reflow instead of a fixed 10-wide grid */
   .color-swatches {
     display: flex;
@@ -2418,7 +2449,9 @@ select.share-control {
    These controls stay hidden until :hover on desktop; a touch device has no
    hover state, so show them permanently. */
 @media (hover: none) {
-  .card-actions { display: flex; }
+  /* Note: .card-actions is intentionally NOT forced visible here — on touch the card
+     renders .card-actions-touch (a single ⋮ button) instead of the 3-icon cluster,
+     and that variant has its own always-visible rule below. */
   .project-card-menu-btn { opacity: 1; }
   .ws-tab-menu-btn { opacity: 0.7; }
 }

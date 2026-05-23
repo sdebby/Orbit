@@ -511,6 +511,11 @@ export async function renderBoard(app, params) {
         toast('Task deleted', 'success');
         await loadAll();
       });
+      card.querySelector('.card-menu-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const task = tasks.find(t => t.id == card.dataset.id);
+        if (task) showTaskMenu(e.currentTarget, task, bucket.id);
+      });
       card.querySelector('.task-check-btn')?.addEventListener('click', async (e) => {
         e.stopPropagation();
         const task = tasks.find(t => t.id == card.dataset.id);
@@ -663,13 +668,19 @@ export async function renderBoard(app, params) {
       ? formatDate(new Date(t.completed_at * 1000).toISOString().split('T')[0])
       : null;
     const ddClass = t.completed_at ? '' : dueDateClass(t.due_date);
-    const actionsHtml = readOnly ? '' : `
+    // On touch devices, render a single ⋮ menu instead of the 3-button cluster — the
+    // cluster sits in the corner where RTL text starts and covers the description.
+    const actionsHtml = readOnly ? '' : (isTouchDevice ? `
+      <div class="card-actions card-actions-touch">
+        <button class="card-menu-btn" title="More">&#8942;</button>
+      </div>
+    ` : `
       <div class="card-actions">
         ${!t.completed_at ? `<button class="card-action-btn card-duplicate-btn" title="Duplicate">&#10697;</button>` : ''}
         ${!t.completed_at ? `<button class="card-action-btn card-edit-btn" title="Edit">&#9998;</button>` : ''}
         <button class="card-action-btn card-delete-btn" title="Delete">&#128465;</button>
       </div>
-    `;
+    `);
     const checkBtnHtml = readOnly ? `
       <span class="task-check-btn read-only ${t.completed_at ? 'checked' : ''}" aria-hidden="true" style="pointer-events:none;cursor:default">${t.completed_at ? '&#10003;' : ''}</span>
     ` : `
@@ -1252,6 +1263,57 @@ export async function renderBoard(app, params) {
     } catch (err) {
       toast(err.message, 'error');
     }
+  }
+
+  // ---- Task dropdown menu (touch devices) ----
+  // Mirrors showBucketMenu — single ⋮ on the card opens this; handler bodies match the
+  // inline .card-edit-btn / .card-duplicate-btn / .card-delete-btn handlers above.
+  function showTaskMenu(btn, task, bucketId) {
+    document.querySelectorAll('.dropdown').forEach(d => d.remove());
+    const menu = document.createElement('div');
+    menu.className = 'dropdown';
+    const editItem = task.completed_at ? '' :
+      `<button class="dropdown-item" id="tm-edit">Edit</button>`;
+    const dupItem = task.completed_at ? '' :
+      `<button class="dropdown-item" id="tm-duplicate">Duplicate</button>`;
+    menu.innerHTML = `
+      ${editItem}
+      ${dupItem}
+      <button class="dropdown-item danger" id="tm-delete">Delete</button>
+    `;
+    document.body.appendChild(menu);
+    const rect = btn.getBoundingClientRect();
+    menu.style.top = `${rect.bottom + window.scrollY + 4}px`;
+    // Right-align so the dropdown doesn't overflow the card on narrow phones
+    menu.style.left = `${rect.right + window.scrollX - menu.offsetWidth}px`;
+
+    menu.querySelector('#tm-edit')?.addEventListener('click', async () => {
+      menu.remove();
+      try {
+        const fresh = await api.getTask(task.id);
+        showTaskModal(bucketId, fresh);
+      } catch { showTaskModal(bucketId, task); }
+    });
+    menu.querySelector('#tm-duplicate')?.addEventListener('click', async () => {
+      menu.remove();
+      try {
+        const checklists = await api.getChecklists(task.id);
+        showTaskModal(bucketId, null, {
+          description: task.description + '-Copy',
+          tags: task.tags || [],
+          checklists,
+        });
+      } catch { toast('Failed to duplicate task', 'error'); }
+    });
+    menu.querySelector('#tm-delete').addEventListener('click', async () => {
+      menu.remove();
+      if (!confirm('Delete this task?')) return;
+      await api.deleteTask(task.id);
+      toast('Task deleted', 'success');
+      await loadAll();
+    });
+
+    setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 0);
   }
 
   // ---- Bucket dropdown menu ----
