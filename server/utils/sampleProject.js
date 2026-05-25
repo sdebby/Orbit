@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('../models/db');
 
-const XML_PATH = path.join(__dirname, '..', 'data', 'sample-project.xml');
+const XML_PATH = path.join(__dirname, '..', 'SampleProject', 'sample-project.xml');
 
 function stripHtmlTags(str) {
   if (!str) return '';
