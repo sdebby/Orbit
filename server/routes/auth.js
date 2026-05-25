@@ -22,6 +22,9 @@ function validatePassword(password) {
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   const { email, password } = req.body;
+  if (typeof email !== 'string' || typeof password !== 'string') {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
   if (!EMAIL_REGEX.test(email)) return res.status(400).json({ error: 'Invalid email format' });
   const pwErr = validatePassword(password);
@@ -61,6 +64,11 @@ const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
 router.post('/login', async (req, res) => {
   const start = Date.now();
   const { email, password } = req.body;
+  // Type guards: a non-string email/password (e.g. JSON object/array/null) used to crash
+  // `email.toLowerCase()` and trigger an unhandled-error 500. Treat as the same 400 as missing fields.
+  if (typeof email !== 'string' || typeof password !== 'string') {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
 
   const emailNorm = email.toLowerCase().trim();
@@ -150,7 +158,7 @@ const MIN_RESPONSE_MS = 300;
 router.post('/forgot-password', (req, res) => {
   const start = Date.now();
   const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email is required' });
+  if (typeof email !== 'string' || !email) return res.status(400).json({ error: 'Email is required' });
 
   const emailNorm = email.toLowerCase().trim();
   const emailHash = sha512(emailNorm);

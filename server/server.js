@@ -9,6 +9,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ALLOWED_ORIGIN = process.env.APP_URL || 'http://localhost:3000';
 
+// Behind a reverse proxy (nginx) in production, X-Forwarded-For carries the real client IP.
+// Without this, express-rate-limit treats every request as coming from the proxy and throws
+// ERR_ERL_UNEXPECTED_X_FORWARDED_FOR. The hop count comes from TRUST_PROXY_HOPS (default 1 = a
+// single proxy in front). Harmless in local dev because no X-F-F header is sent.
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
+
 // Security headers
 app.use(helmet({
   crossOriginResourcePolicy: true,
@@ -50,6 +56,16 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// Catch malformed JSON bodies as 400 instead of letting them surface as 500 from the global
+// handler. body-parser tags these as `entity.parse.failed`; the body-too-large case
+// (`entity.too.large` / status 413) keeps falling through to the global handler below.
+app.use((err, req, res, next) => {
+  if (err && err.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'Invalid JSON' });
+  }
+  next(err);
+});
 
 // Prevent caching of all API responses (sensitive user data must not be stored by proxies/browsers)
 app.use('/api', (req, res, next) => {
