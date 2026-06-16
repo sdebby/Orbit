@@ -1945,21 +1945,55 @@ body[data-theme="dark"] .admin-bulk-bar { border-color: rgba(0,82,204,0.5); }
 
 /* ========= Profile Page ========= */
 .profile-page {
-  padding: 32px 24px;
-  max-width: 600px;
+  padding: 0 24px 32px;
+  max-width: 1100px;
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
 }
 .profile-page .back-link {
   align-self: flex-start;
   color: var(--text2); font-size: 13px;
   border: none; background: none; cursor: pointer; padding: 0;
-  margin-bottom: 4px;
   text-decoration: none;
 }
 .profile-page .back-link:hover { color: var(--accent); }
+
+.profile-page-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  padding: 24px 0 16px;
+  margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.profile-page-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.profile-grid-full { grid-column: 1 / -1; }
+
+.settings-section-icon {
+  width: 16px; height: 16px;
+  display: inline-block;
+  vertical-align: -3px;
+  margin-right: 8px;
+  color: var(--text2);
+}
+.settings-section-icon svg { width: 100%; height: 100%; display: block; }
+.settings-card.danger-zone .settings-section-icon { color: var(--red); }
 
 /* Avatar */
 .profile-avatar-wrap { position: relative; flex-shrink: 0; }
@@ -2427,7 +2461,10 @@ select.share-control {
   .share-invite-grid { grid-template-columns: 1fr; }
 
   /* Profile */
-  .profile-page { padding: 24px 14px; }
+  .profile-page { padding: 0 14px 24px; max-width: 600px; }
+  .profile-grid { grid-template-columns: 1fr; gap: 16px; }
+  .profile-page-header { position: static; padding: 16px 0 8px; }
+  .profile-page-title { font-size: 20px; }
   .settings-row { flex-wrap: wrap; }
 
   /* Larger touch targets for the smallest controls */
@@ -2442,7 +2479,7 @@ select.share-control {
   .board-header { padding: 10px 12px; }
   .board-header h2 { font-size: 16px; }
   .board-project-desc { display: none; }
-  .profile-page { padding: 20px 10px; }
+  .profile-page { padding: 0 10px 20px; }
 }
 
 /* ---- Touch / no-hover devices: reveal hover-only affordances ----

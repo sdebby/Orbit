@@ -127,17 +127,34 @@ export async function renderProfile(app) {
     user = { ...user, ...fresh };
     localStorage.setItem('orbit_user', JSON.stringify(user));
   } catch { /* use cached */ }
+
+  const icons = {
+    identity:      `<span class="settings-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></span>`,
+    appearance:    `<span class="settings-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>`,
+    workspaces:    `<span class="settings-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>`,
+    notifications: `<span class="settings-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>`,
+    data:          `<span class="settings-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>`,
+    security:      `<span class="settings-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>`,
+    danger:        `<span class="settings-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>`,
+  };
+
   app.innerHTML = `
     <div class="app-layout">
       ${navbarHtml({ hideProfile: true })}
       <div class="page-content" style="overflow-y:auto">
         <div class="profile-page">
 
-          ${breadcrumbHtml()}
+          <div class="profile-page-header">
+            ${breadcrumbHtml()}
+            <h1 class="profile-page-title">Profile</h1>
+          </div>
+
+          <div class="profile-grid">
 
           <!-- Identity card (avatar + display name) -->
           <div class="settings-card profile-identity-card">
             <div class="settings-card-body">
+              <div class="settings-section-label">${icons.identity}Profile</div>
               <div class="profile-identity-row">
                 <div class="profile-avatar-wrap">
                   <div class="avatar-lg" id="profile-avatar">
@@ -168,7 +185,7 @@ export async function renderProfile(app) {
           <!-- Appearance card -->
           <div class="settings-card">
             <div class="settings-card-body">
-              <div class="settings-section-label">Appearance</div>
+              <div class="settings-section-label">${icons.appearance}Appearance</div>
               <div class="settings-row">
                 <div>
                   <div class="settings-row-title">Dark Mode</div>
@@ -196,7 +213,7 @@ export async function renderProfile(app) {
           <!-- Workspaces card -->
           <div class="settings-card">
             <div class="settings-card-body">
-              <div class="settings-section-label">Workspaces</div>
+              <div class="settings-section-label">${icons.workspaces}Workspaces</div>
               <div class="settings-row">
                 <div>
                   <div class="settings-row-title">Enable Workspaces</div>
@@ -213,7 +230,7 @@ export async function renderProfile(app) {
           <!-- Notifications card -->
           <div class="settings-card">
             <div class="settings-card-body">
-              <div class="settings-section-label">Notifications</div>
+              <div class="settings-section-label">${icons.notifications}Notifications</div>
               <div class="settings-row">
                 <div>
                   <div class="settings-row-title">Task Digest Email</div>
@@ -235,9 +252,9 @@ export async function renderProfile(app) {
           </div>
 
           <!-- Data card -->
-          <div class="settings-card">
+          <div class="settings-card profile-grid-full">
             <div class="settings-card-body">
-              <div class="settings-section-label">Data</div>
+              <div class="settings-section-label">${icons.data}Data</div>
               <div class="settings-row" style="flex-wrap:wrap;gap:8px;align-items:center">
                 <div>
                   <div class="settings-row-title">Include</div>
@@ -289,9 +306,9 @@ export async function renderProfile(app) {
           </div>
 
           <!-- Security card -->
-          <div class="settings-card">
+          <div class="settings-card profile-grid-full">
             <div class="settings-card-body">
-              <div class="settings-section-label">Security</div>
+              <div class="settings-section-label">${icons.security}Security</div>
               <form id="password-form">
                 <div class="form-group">
                   <label>Current Password</label>
@@ -313,9 +330,9 @@ export async function renderProfile(app) {
           </div>
 
           <!-- Danger Zone card -->
-          <div class="settings-card danger-zone">
+          <div class="settings-card danger-zone profile-grid-full">
             <div class="settings-card-body">
-              <div class="settings-section-label">Danger Zone</div>
+              <div class="settings-section-label">${icons.danger}Danger Zone</div>
               <div class="settings-row">
                 <div>
                   <div class="settings-row-title" style="color:var(--red)">Delete Account</div>
@@ -325,6 +342,8 @@ export async function renderProfile(app) {
               </div>
             </div>
           </div>
+
+          </div><!-- /.profile-grid -->
 
         </div>
       </div>
