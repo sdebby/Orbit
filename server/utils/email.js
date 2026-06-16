@@ -245,6 +245,50 @@ async function sendProjectShareEmail(toEmail, { ownerName, projectTitle, role, a
   });
 }
 
+async function sendPasswordChangedEmail(toEmail, { method, changedAt, ipAddress, userAgent }) {
+  const subject = 'Orbit — Your password was changed';
+  const methodLabel = method === 'reset'
+    ? 'using a password reset link'
+    : 'from your profile settings';
+  const when = changedAt instanceof Date ? changedAt : new Date();
+  const whenStr = when.toUTCString();
+  const ipLine    = ipAddress ? `<p style="margin:0 0 8px"><strong>IP address:</strong> ${escapeHtml(ipAddress)}</p>` : '';
+  const agentLine = userAgent ? `<p style="margin:0 0 8px"><strong>Device:</strong> ${escapeHtml(userAgent)}</p>` : '';
+  const appUrl = process.env.APP_URL || 'http://localhost:3000';
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+      <h2 style="color:#1a56db;border-bottom:2px solid #e5e7eb;padding-bottom:12px">Password Changed</h2>
+      <p>The password for your Orbit account was just changed ${escapeHtml(methodLabel)}.</p>
+      <div style="background:#f9fafb;border-left:4px solid #1a56db;padding:16px;border-radius:4px;margin:16px 0">
+        <p style="margin:0 0 8px"><strong>When:</strong> ${escapeHtml(whenStr)}</p>
+        ${ipLine}
+        ${agentLine}
+      </div>
+      <p>If this was you, no further action is needed.</p>
+      <p><strong>If you did not make this change</strong>, your account may be compromised. Reset your password immediately and review your active sessions:</p>
+      <p style="margin:20px 0">
+        <a href="${escapeHtml(appUrl)}/#/forgot-password" style="background:#dc2626;color:#fff;padding:10px 18px;border-radius:4px;text-decoration:none;display:inline-block">Reset password</a>
+      </p>
+      <p style="color:#6b7280;font-size:12px;border-top:1px solid #e5e7eb;padding-top:12px;margin-top:24px">
+        You are receiving this email as a security notification from Orbit. This message cannot be disabled.
+      </p>
+    </div>
+  `;
+
+  if (!transporter) {
+    console.log(`[EMAIL] No SMTP configured — password-changed notice for ${maskEmail(toEmail)} (${method})`);
+    return;
+  }
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || 'no-reply@orbit.app',
+    to: toEmail,
+    subject,
+    html,
+  });
+}
+
 async function sendProjectShareInviteEmail(toEmail, { ownerName, projectTitle, role, inviteLink }) {
   const subject = `Orbit — ${ownerName} invited you to a project`;
   const roleLabel = role === 'editor' ? 'edit' : 'view';
@@ -282,4 +326,4 @@ async function sendProjectShareInviteEmail(toEmail, { ownerName, projectTitle, r
   });
 }
 
-module.exports = { sendPasswordResetEmail, sendVerificationEmail, sendTaskReminderEmail, sendUndueTasksDigestEmail, sendFeedbackEmail, sendProjectShareEmail, sendProjectShareInviteEmail };
+module.exports = { sendPasswordResetEmail, sendVerificationEmail, sendTaskReminderEmail, sendUndueTasksDigestEmail, sendFeedbackEmail, sendProjectShareEmail, sendProjectShareInviteEmail, sendPasswordChangedEmail };

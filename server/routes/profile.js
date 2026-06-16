@@ -5,6 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 const { hashPassword, verifyPassword, decryptEmail, safePicturePath } = require('../utils/hash');
 const { collectUserUploadPaths, deleteUploadFiles } = require('../utils/uploads');
 const { signToken } = require('../middleware/auth');
+const { sendPasswordChangedEmail } = require('../utils/email');
 
 function stripHtmlTags(str) {
   if (typeof str !== 'string') return str;
@@ -101,6 +102,18 @@ router.put('/', requireAuth, upload.single('profile_picture'), async (req, res) 
   } else {
     db.prepare('UPDATE users SET profile_picture = ?, password_hash = ?, username = ?, reminder_interval = ?, workspaces_enabled = ?, theme = ? WHERE id = ?')
       .run(picture, passwordHash, updatedUsername, reminderInterval, wsEnabled, userTheme, user.id);
+  }
+
+  if (new_password) {
+    const toEmail = decryptEmail(user.email);
+    if (toEmail) {
+      sendPasswordChangedEmail(toEmail, {
+        method: 'profile',
+        changedAt: new Date(),
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      }).catch(err => console.error('[EMAIL] password-changed notice failed:', err.message));
+    }
   }
 
   // Re-issue cookie with current token_version so the current session stays valid

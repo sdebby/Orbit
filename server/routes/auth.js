@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const db = require('../models/db');
 const { sha256, sha512, hashPassword, verifyPassword, encryptEmail, decryptEmail } = require('../utils/hash');
 const { requireAuth, signToken, getAdminEmailHash } = require('../middleware/auth');
-const { sendPasswordResetEmail, sendVerificationEmail } = require('../utils/email');
+const { sendPasswordResetEmail, sendVerificationEmail, sendPasswordChangedEmail } = require('../utils/email');
 const { createSampleProject } = require('../utils/sampleProject');
 const { promotePendingShares } = require('../utils/pendingShares');
 
@@ -216,6 +216,16 @@ router.post('/reset-password/:token', async (req, res) => {
   const newVersion = (user.token_version || 0) + 1;
   db.prepare('UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL, token_version = ? WHERE id = ?')
     .run(passwordHash, newVersion, user.id);
+
+  const toEmail = decryptEmail(user.email);
+  if (toEmail) {
+    sendPasswordChangedEmail(toEmail, {
+      method: 'reset',
+      changedAt: new Date(),
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    }).catch(err => console.error('[EMAIL] password-changed notice failed:', err.message));
+  }
 
   res.json({ message: 'Password updated successfully' });
 });
