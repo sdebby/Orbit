@@ -15,6 +15,10 @@ const ALLOWED_ORIGIN = process.env.APP_URL || 'http://localhost:3000';
 // single proxy in front). Harmless in local dev because no X-F-F header is sent.
 app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
 
+// Express 5 defaults to the `simple` query parser (node:querystring). Keep the Express 4 behaviour
+// (qs) so `req.query` parsing stays identical for the ?q= / ?tags= / ?workspace= filters.
+app.set('query parser', 'extended');
+
 // Security headers
 app.use(helmet({
   crossOriginResourcePolicy: true,
@@ -56,6 +60,13 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// Express 5 leaves req.body undefined when no parser matched (Express 4 defaulted to {}). Route
+// handlers destructure req.body directly, so restore the old default before they run.
+app.use((req, res, next) => {
+  if (req.body === undefined) req.body = {};
+  next();
+});
 
 // Catch malformed JSON bodies as 400 instead of letting them surface as 500 from the global
 // handler. body-parser tags these as `entity.parse.failed`; the body-too-large case
@@ -210,11 +221,13 @@ app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/risks', require('./routes/risks'));
 app.use('/api/checklists', require('./routes/checklists'));
 
-// SPA fallback
-app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api')) {
-    res.sendFile(path.join(__dirname, '..', 'client', 'index.html'));
+// SPA fallback — `{*splat}` is the Express 5 (path-to-regexp v8) spelling of the old `*` wildcard;
+// the braces keep the segment optional so `/` still matches.
+app.get('{*splat}', (req, res) => {
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'Not found' });
   }
+  res.sendFile(path.join(__dirname, '..', 'client', 'index.html'));
 });
 
 // Global error handler
@@ -224,6 +237,11 @@ app.use((err, req, res, next) => {
   }
   if (err.code === 'LIMIT_FIELD_VALUE') {
     return res.status(400).json({ error: 'Field value too large' });
+  }
+  // Any other multer rejection (INVALID_FIELD_NAME, LIMIT_PART_COUNT, STREAM_DESTROYED, …) is a
+  // bad upload request, not a server fault — upload errors must never surface as 500.
+  if (err.name === 'MulterError') {
+    return res.status(400).json({ error: 'Invalid upload request' });
   }
   if (err.status === 413 || err.type === 'entity.too.large') {
     return res.status(413).json({ error: 'Request body too large' });

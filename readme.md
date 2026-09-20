@@ -71,7 +71,7 @@
 | Layer | Technology |
 |---|---|
 | Frontend | Vanilla JS SPA (no framework), ES modules, hash-based routing |
-| Backend | Node.js + Express 4 |
+| Backend | Node.js + Express 5 |
 | Database | SQLite via `node-sqlite3-wasm` |
 | Auth | JWT (`jsonwebtoken`) |
 | Passwords | `hash-wasm` (Argon2id) |
