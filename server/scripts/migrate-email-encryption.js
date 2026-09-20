@@ -10,7 +10,7 @@
  * After --rekey completes successfully, the old key is no longer needed.
  */
 
-require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env'), quiet: true });
 
 const { encryptEmail, decryptEmail } = require('../utils/hash');
 
